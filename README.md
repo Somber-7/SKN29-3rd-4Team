@@ -86,7 +86,7 @@ SKN29-3rd-4Team/
 │   │   │                    #   yinyang.json      — 오행 조합 125종 운세 설명
 │   │   │                    #   johab.json        — 초성별 한글 음절 목록
 │   │   │                    #   2016_2026상위_출생신고_이름_현황.xls — 연도별 인기 이름 순위
-│   │   ├── urimalsaem/      # 우리말샘 어휘 JSON (1.7GB)
+│   │   ├── urimalsaem/      # 우리말샘 어휘 JSON — .gitignore 제외 (API 사용으로 대체)
 │   │   └── pdf/             # 법령·문서 PDF
 │   │                        #   hanja.pdf                    — 인명용 한자표 (이미지 기반, OCR 필요)
 │   │                        #   한글 글자 유니코드.pdf          — 2018 인명용 한자 개정 근거 문서 (204p)

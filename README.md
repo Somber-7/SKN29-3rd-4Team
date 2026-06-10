@@ -80,9 +80,16 @@ SKN29-3rd-4Team/
 │   ├── raw/
 │   │   ├── unihan/          # Unicode Unihan 원본 TXT
 │   │   ├── ohaeng/          # 자원오행 발음오행구분표.xlsx
-│   │   ├── reference/       # 작명 판단 기준 참조 데이터 (인명용 한자 4975자, 81수리, 오행조합 125종, 한글 음절)
+│   │   ├── reference/       # 작명 판단 기준 참조 데이터
+│   │   │                    #   peoplehanja.json  — 인명용 한자 4,975자 (한자·오행·획수·뜻·음)
+│   │   │                    #   81suri.json       — 획수 합 0~81 수리 풀이
+│   │   │                    #   yinyang.json      — 오행 조합 125종 운세 설명
+│   │   │                    #   johab.json        — 초성별 한글 음절 목록
+│   │   │                    #   2016_2026상위_출생신고_이름_현황.xls — 연도별 인기 이름 순위
 │   │   ├── urimalsaem/      # 우리말샘 어휘 JSON (1.7GB)
-│   │   └── pdf/             # 우리말 이름 자료집 PDF (수집 예정)
+│   │   └── pdf/             # 법령·문서 PDF
+│   │                        #   hanja.pdf         — 인명용 한자표 (이미지 기반, OCR 필요)
+│   │                        #   한글 글자 유니코드.pdf — 2018 인명용 한자 개정 근거 문서 (204p)
 │   ├── processed/           # 전처리 완료 데이터 (JSON/CSV)
 │   └── vector_db/           # ChromaDB 로컬 저장소
 ├── src/

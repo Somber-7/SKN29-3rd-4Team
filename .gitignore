@@ -1,0 +1,37 @@
+# 환경변수
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+
+# 가상환경
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 벡터DB (로컬 저장소 — 용량 큼)
+data/vector_db/
+
+# 전처리 완료 데이터 (재현 가능하므로 제외)
+data/processed/
+
+# 대용량 원본 데이터
+data/raw/unihan/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

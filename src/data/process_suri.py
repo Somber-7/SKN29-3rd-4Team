@@ -12,6 +12,7 @@ process_suri.py — 81수리 / 오행 조합 데이터 전처리
 
 import os
 import json
+import re
 
 # ─────────────────────────────────────────────
 # 경로 설정
@@ -27,6 +28,14 @@ def _load_json_with_comments(filepath: str):
         lines = f.readlines()
     cleaned = "".join(line for line in lines if not line.strip().startswith("//"))
     return json.loads(cleaned)
+
+
+def split_ko_hanja(text):
+    """괄호와 한자를 분리 (예: '발전격(發展格)' -> '발전격', '發展格')"""
+    match = re.match(r"(.+?)\((.+?)\)", text)
+    if match:
+        return match.group(1).strip(), match.group(2).strip()
+    return text.strip(), ""
 
 
 # ═══════════════════════════════════════════════════════
@@ -54,14 +63,6 @@ def process_81suri():
         # 0수는 빈 데이터이므로 건너뜀
         if num == 0 or not description:
             continue
-
-        # 괄호와 한자를 분리 (예: "발전격(發展格)" -> "발전격", "發展格")
-        import re
-        def split_ko_hanja(text):
-            match = re.match(r"(.+?)\((.+?)\)", text)
-            if match:
-                return match.group(1).strip(), match.group(2).strip()
-            return text.strip(), ""
 
         gyeok_ko, gyeok_hanja = split_ko_hanja(gyeok)
         fortune_ko, fortune_hanja = split_ko_hanja(fortune)
@@ -127,8 +128,10 @@ def process_yinyang():
             flow = "전체상생"
         elif "상극" in [pair1, pair2]:
             flow = "상극포함"
+        elif pair1 == "비화" and pair2 == "비화":
+            flow = "전체비화"
         else:
-            flow = "혼합"
+            flow = "부분상생"
 
         # ChromaDB에 인덱싱할 텍스트
         doc_text = (
@@ -181,7 +184,7 @@ def main():
     for d in ohaeng_docs:
         flow = d["metadata"]["flow"]
         flow_counts[flow] = flow_counts.get(flow, 0) + 1
-    print(f"  오행 조합: {len(ohaeng_docs)}건 (전체상생: {flow_counts.get('전체상생', 0)}건 / 상극포함: {flow_counts.get('상극포함', 0)}건 / 혼합: {flow_counts.get('혼합', 0)}건)")
+    print(f"  오행 조합: {len(ohaeng_docs)}건 (전체상생: {flow_counts.get('전체상생', 0)}건 / 부분상생: {flow_counts.get('부분상생', 0)}건 / 전체비화: {flow_counts.get('전체비화', 0)}건 / 상극포함: {flow_counts.get('상극포함', 0)}건 / 혼합: {flow_counts.get('혼합', 0)}건)")
 
 
 if __name__ == "__main__":

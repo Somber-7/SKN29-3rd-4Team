@@ -43,7 +43,7 @@ def _request_with_retry(
             res = requests.get(url, params=params, timeout=timeout)
             res.raise_for_status()
             return res.json()
-        except (requests.exceptions.Timeout, requests.exceptions.RequestException):
+        except (requests.exceptions.Timeout, requests.exceptions.RequestException, ValueError):
             if attempt == max_retries - 1:
                 raise
             time.sleep(2 ** attempt)

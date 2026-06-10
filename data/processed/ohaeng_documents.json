@@ -10,7 +10,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -24,7 +24,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -52,7 +52,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -66,7 +66,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -80,7 +80,7 @@
       "element3": "木",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -94,7 +94,7 @@
       "element3": "火",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -136,7 +136,7 @@
       "element3": "水",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -234,7 +234,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -248,7 +248,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -262,7 +262,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -276,7 +276,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -290,7 +290,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -318,7 +318,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -332,7 +332,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -346,7 +346,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -360,7 +360,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -374,7 +374,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -402,7 +402,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -416,7 +416,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -430,7 +430,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -444,7 +444,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -458,7 +458,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -486,7 +486,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -500,7 +500,7 @@
       "element3": "木",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -514,7 +514,7 @@
       "element3": "火",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -528,7 +528,7 @@
       "element3": "土",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -668,7 +668,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -682,7 +682,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -696,7 +696,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -710,7 +710,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -724,7 +724,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -752,7 +752,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -766,7 +766,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -780,7 +780,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -794,7 +794,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -808,7 +808,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -836,7 +836,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -850,7 +850,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -864,7 +864,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -878,7 +878,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -892,7 +892,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -934,7 +934,7 @@
       "element3": "火",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -948,7 +948,7 @@
       "element3": "土",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -962,7 +962,7 @@
       "element3": "金",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1130,7 +1130,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1144,7 +1144,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1158,7 +1158,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1186,7 +1186,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1200,7 +1200,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1214,7 +1214,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1228,7 +1228,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1242,7 +1242,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1284,7 +1284,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1298,7 +1298,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1312,7 +1312,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1326,7 +1326,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1368,7 +1368,7 @@
       "element3": "土",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1382,7 +1382,7 @@
       "element3": "金",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1396,7 +1396,7 @@
       "element3": "水",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1410,7 +1410,7 @@
       "element3": "木",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1452,7 +1452,7 @@
       "element3": "金",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1466,7 +1466,7 @@
       "element3": "水",
       "pair1_relation": "상생",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1550,7 +1550,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1564,7 +1564,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1578,7 +1578,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1592,7 +1592,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1634,7 +1634,7 @@
       "element3": "火",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1648,7 +1648,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1662,7 +1662,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1676,7 +1676,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1690,7 +1690,7 @@
       "element3": "木",
       "pair1_relation": "비화",
       "pair2_relation": "상생",
-      "flow": "혼합"
+      "flow": "부분상생"
     }
   },
   {
@@ -1718,7 +1718,7 @@
       "element3": "土",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1732,7 +1732,7 @@
       "element3": "金",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   },
   {
@@ -1746,7 +1746,7 @@
       "element3": "水",
       "pair1_relation": "비화",
       "pair2_relation": "비화",
-      "flow": "혼합"
+      "flow": "전체비화"
     }
   }
 ]

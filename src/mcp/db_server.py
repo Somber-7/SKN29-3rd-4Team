@@ -91,9 +91,9 @@ def calculate_name_suri(
     성씨와 이름 각 글자의 획수를 입력받아 81수리 4격을 계산합니다.
 
     81수리 4격:
-      - 원격(元格, 초년운) = 성 획수 + 이름 첫째 글자 획수
-      - 형격(亨格, 청년운) = 이름 첫째 글자 획수 + 이름 둘째 글자 획수
-      - 이격(利格, 중년운) = 성 획수 + 이름 첫째 + 이름 둘째 획수
+      - 원격(元格, 초년운) = 이름 첫째 글자 획수 + 이름 둘째 글자 획수
+      - 형격(亨格, 청년운) = 성 획수 + 이름 첫째 글자 획수
+      - 이격(利格, 중년운) = 성 획수 + 이름 둘째 글자 획수
       - 정격(貞格, 총운)   = 전체 합 (81 초과 시 mod 81)
 
     4격이 모두 吉이어야 좋은 이름으로 판정됩니다.
@@ -115,9 +115,9 @@ def calculate_name_suri(
 
     # 4격 계산
     calculations = [
-        ("원격(초년운)", S + A),
-        ("형격(청년운)", A + B),
-        ("이격(중년운)", S + A + B),
+        ("원격(초년운)", A + B),
+        ("형격(청년운)", S + A),
+        ("이격(중년운)", S + B),
         ("정격(총운)", S + A + B),
     ]
 
@@ -191,9 +191,9 @@ def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
 
     for A in range(1, max_strokes + 1):
         for B in range(1, max_strokes + 1):
-            won_info = _get_suri_info(S + A)
-            hyung_info = _get_suri_info(A + B)
-            yi_info = _get_suri_info(S + A + B)
+            won_info = _get_suri_info(A + B)
+            hyung_info = _get_suri_info(S + A)
+            yi_info = _get_suri_info(S + B)
             jung_info = _get_suri_info(S + A + B)
 
             if all(
@@ -203,12 +203,14 @@ def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
                 won_g = won_info["gilhyung"]
                 hyung_g = hyung_info["gilhyung"]
                 yi_g = yi_info["gilhyung"]
+                jung_g = jung_info["gilhyung"]
 
                 lucky_combos.append({
                     "a": A, "b": B,
-                    "won": S + A, "won_g": won_g,
-                    "hyung": A + B, "hyung_g": hyung_g,
-                    "yi": S + A + B, "yi_g": yi_g,
+                    "won": A + B, "won_g": won_g,
+                    "hyung": S + A, "hyung_g": hyung_g,
+                    "yi": S + B, "yi_g": yi_g,
+                    "jung": S + A + B, "jung_g": jung_g,
                 })
 
     if not lucky_combos:
@@ -220,7 +222,7 @@ def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
     # 大吉이 많은 조합 우선 정렬
     def sort_key(c):
         score = 0
-        for g in [c["won_g"], c["hyung_g"], c["yi_g"]]:
+        for g in [c["won_g"], c["hyung_g"], c["yi_g"], c["jung_g"]]:
             if g == "大吉":
                 score += 3
             elif g == "吉":
@@ -237,7 +239,8 @@ def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
             f"  ({c['a']}획, {c['b']}획) → "
             f"원격{c['won']}({c['won_g']}) "
             f"형격{c['hyung']}({c['hyung_g']}) "
-            f"이격{c['yi']}({c['yi_g']})"
+            f"이격{c['yi']}({c['yi_g']}) "
+            f"정격{c['jung']}({c['jung_g']})"
         )
 
     header = (

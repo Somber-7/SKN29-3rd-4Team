@@ -50,7 +50,6 @@
 | 가족관계의 등록 등에 관한 규칙 | `data/raw/pdf/` | PDF (25p) | 텍스트 추출 가능, 대법원규칙 |
 | 인명용 한자표 | `data/raw/pdf/hanja.pdf` | PDF (이미지) | OCR 필요 |
 | 2018 인명용 한자 개정 근거 문서 | `data/raw/pdf/한글 글자 유니코드.pdf` | PDF (204p) | 별표1/별표2 분류, 대체자 관계 포함 |
-| 우리말샘 어휘 정보 | `data/raw/urimalsaem/` | JSON (25개, 1.7GB) | 순우리말 뜻 검증용 |
 
 ### 수집 필요
 

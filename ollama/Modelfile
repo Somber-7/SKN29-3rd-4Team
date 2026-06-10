@@ -1,0 +1,6 @@
+FROM qwen3.5:4b
+
+PARAMETER think false
+PARAMETER num_ctx 4096
+PARAMETER temperature 0.7
+PARAMETER num_predict 1024

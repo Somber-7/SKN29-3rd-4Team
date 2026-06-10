@@ -80,6 +80,8 @@ SKN29-3rd-4Team/
 │   ├── raw/
 │   │   ├── unihan/          # Unicode Unihan 원본 TXT
 │   │   ├── ohaeng/          # 자원오행 발음오행구분표.xlsx
+│   │   ├── reference/       # 작명 판단 기준 참조 데이터 (인명용 한자 4975자, 81수리, 오행조합 125종, 한글 음절)
+│   │   ├── urimalsaem/      # 우리말샘 어휘 JSON (1.7GB)
 │   │   └── pdf/             # 우리말 이름 자료집 PDF (수집 예정)
 │   ├── processed/           # 전처리 완료 데이터 (JSON/CSV)
 │   └── vector_db/           # ChromaDB 로컬 저장소

@@ -19,6 +19,9 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
+# 대용량 데이터 (GitHub 100MB 제한 초과)
+data/raw/urimalsaem/
+
 # OS
 .DS_Store
 Thumbs.db

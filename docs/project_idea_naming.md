@@ -33,27 +33,48 @@
 
 ---
 
-## 수집 범위
+## 수집 범위 및 데이터 현황
 
-| 항목 | 내용 |
-|---|---|
-| 내부 한자 데이터 | Unicode Unihan DB (획수/뜻/음) + 자원오행 분류표 (약 2400자) |
-| 내부 이름 사전 | 국립국어원 우리말 이름 자료집 PDF |
-| 외부 법령 | 국가법령정보 API → 가족관계등록법, 인명용 한자 규정 |
-| 외부 어휘 | 우리말샘 오픈 API → 순우리말 뜻 검증 |
-| 외부 통계 | 법원행정처 이름 통계 API → 추천 이름 빈도/희소성 |
-| 폴백 | 미수집 법령 질문 시 국가법령정보 API 실시간 조회 → ChromaDB 캐싱 저장 |
+### 수집 완료
 
-### 데이터 수집 방법 상세
-
-| 데이터 | 수집 방법 | 형태 | 상태 |
+| 데이터 | 경로 | 형태 | 비고 |
 |---|---|---|---|
-| Unicode Unihan DB (획수/뜻/음) | 직접 다운로드 (공개 데이터) | TXT | 수집 완료 |
-| 자원오행 발음오행 분류표 | 엑셀 직접 구조화 (약 2400자) | XLSX | 수집 완료 |
-| 국립국어원 우리말 이름 자료집 | 공식 홈페이지 PDF 직접 다운로드 | PDF | 수집 필요 |
-| 가족관계등록법 / 인명용 한자 규정 | 국가법령정보 API (텍스트 직접 수신) | XML/JSON | API 키 발급 필요 |
-| 우리말샘 어휘 정보 | 우리말샘 오픈 API (텍스트 직접 수신) | JSON | API 키 발급 필요 |
-| 이름 빈도 통계 | 법원행정처 공공데이터 API | JSON | API 키 발급 필요 |
+| Unicode Unihan DB (획수/뜻/음) | `data/raw/unihan/` | TXT (8개) | 획수는 `kKangXi`(강희자전 원획법) 기준 사용 |
+| 자원오행 발음오행 분류표 | `data/raw/ohaeng/` | XLSX | 약 2,400자 |
+| 인명용 한자 4,975자 | `data/raw/reference/peoplehanja.json` | JSON | 한자·자원오행·발음오행·획수·뜻·부수·음 포함 |
+| 81수리 획수 풀이 (0~81) | `data/raw/reference/81suri.json` | JSON | 격명·吉凶·설명 포함 |
+| 오행 조합 운세 125종 | `data/raw/reference/yinyang.json` | JSON | 木木木 ~ 水水水 조합별 설명 |
+| 초성별 한글 음절 목록 | `data/raw/reference/johab.json` | JSON | 발음 유효성 검증용 |
+| 2016~2026 출생신고 이름현황 | `data/raw/reference/2016_2026상위_출생신고_이름_현황.xls` | XLS | 순위·이름·비율·건수 |
+| 가족관계의 등록 등에 관한 법률 | `data/raw/pdf/` | PDF (22p) | 텍스트 추출 가능 |
+| 가족관계의 등록 등에 관한 규칙 | `data/raw/pdf/` | PDF (25p) | 텍스트 추출 가능, 대법원규칙 |
+| 인명용 한자표 | `data/raw/pdf/hanja.pdf` | PDF (이미지) | OCR 필요 |
+| 2018 인명용 한자 개정 근거 문서 | `data/raw/pdf/한글 글자 유니코드.pdf` | PDF (204p) | 별표1/별표2 분류, 대체자 관계 포함 |
+| 우리말샘 어휘 정보 | `data/raw/urimalsaem/` | JSON (25개, 1.7GB) | 순우리말 뜻 검증용 |
+
+### 수집 필요
+
+| 데이터 | 수집 방법 | 비고 |
+|---|---|---|
+| 국립국어원 우리말 이름 자료집 | 공식 홈페이지 PDF 직접 다운로드 | 스캔본 시 OCR 필요 |
+| 우리말샘 오픈 API | API 키 발급 | 어휘 실시간 검증용 |
+| 이름 빈도 통계 | 사법정보공유포털 (`openapi.scourt.go.kr`) — 승인 심사 수일 소요 | Day 1에 선제 신청 필요 |
+| 국가법령정보 API | API 키 발급 | 미수집 법령 폴백용 |
+
+---
+
+## 획수 기준: 원획법(元劃法)
+
+한국 작명학계는 강희자전(康熙字典) 기반의 **원획법**을 표준으로 사용.
+Unihan의 `kTotalStrokes`(필획법)와 `kKangXi`(강희자전 획수)는 부수 변형자에서 차이 발생:
+
+| 글자 | 필획법 | 원획법 | 근거 |
+|---|---|---|---|
+| 삼수변(氵) | 3획 | 4획 (水 기준) | |
+| 심방변(忄) | 3획 | 4획 (心 기준) | |
+| 책받침(辶) | 3획 | 7획 (辵 기준) | |
+
+→ SQLite 획수 컬럼 및 81수리 연산은 반드시 `kKangXi` 기준값 사용.
 
 ---
 
@@ -61,41 +82,46 @@
 
 ```
 [1단계 — 데이터 수집 및 구조화]
-① 내부: Unicode Unihan TXT 파싱 + 자원오행 XLSX 병합
-         → 한자별 (음/뜻/획수/오행) 통합 JSON 구성
-② 내부: 국립국어원 우리말 이름 PDF → pdfplumber 파싱
-③ 외부: 국가법령정보 API → 가족관계등록법, 인명용 한자 규정 텍스트 수신
+① 내부 한자: Unihan TXT 파싱 (kKangXi 획수 기준) + 자원오행 XLSX + peoplehanja.json 병합
+              → 한자별 (음/뜻/획수/자원오행/발음오행) 통합 JSON 구성
+② 내부 수리: 81suri.json, yinyang.json → RAG 청킹 원본
+③ 내부 법령: 가족관계등록법 PDF + 대법원규칙 PDF → pdfplumber 파싱 (텍스트 추출 가능)
+④ 내부 이름: 국립국어원 우리말 이름 자료집 PDF → pdfplumber / OCR
+⑤ 외부 폴백: 국가법령정보 API (미수집 법령), 우리말샘 API, 이름 통계 API
     ↓
 [2단계 — 전처리]
 KoNLPy (Okt) 형태소 분석 → 불용어 제거 → 텍스트 정규화
     ↓
 [3단계 — 인덱싱]
 청킹 전략 비교 실험 (Fixed-size / Recursive / Semantic)
-    ├─ ChromaDB (Vector DB — 한자 속성, 우리말 이름, 법령 조문 검색)
-    └─ Neo4j    (Graph DB — 한자-오행-법령 관계)
+  - 한자 속성 JSON, 수리/오행 설명: 객체 단위 단일 문서로 인덱싱 + 메타데이터 필터
+  - 법령 조문: 조항(Article) 단위 맞춤 파서 적용 (조문 맥락 보존)
+    ├─ ChromaDB (Vector DB — 한자 속성, 우리말 이름, 법령 조문, 수리 설명)
+    └─ Neo4j    (Graph DB — 한자-오행-법령-상생/상극 관계)
 한자 수치 데이터 (획수, 오행코드) → SQLite 저장
     ↓
 [4단계 — 질의 처리: LangGraph StateGraph]
-Router 노드: 질문 분류
+Router 노드: 질문 분류 → ReAct 루프 (다중 의도 질의 처리)
     ├─ internal_rag : ChromaDB 검색 → 조건 충족 한자/이름 + 출처 포함 답변
-    ├─ graph        : Neo4j 탐색 → 인명용 한자 규정 적합성 검증
-    ├─ sql          : SQLite 조회 → 획수/오행 수치 조건 필터
+    ├─ graph        : Neo4j 탐색 → 인명용 한자 규정 적합성 + 상생/상극 검증
+    ├─ sql          : SQLite 조회 → 획수/오행 수치 조건 필터 + 81수리 역산
     └─ external_api : 미수집 법령 → 국가법령정보 API 실시간 조회
                       + 우리말샘 API 어휘 검증
                       → 결과 ChromaDB 캐싱 저장
     ↓
 [5단계 — MCP 서버]
-rag_server.py   : ChromaDB 한자/이름/법령 검색 Tool
-graph_server.py : Neo4j 인명용 한자 규정 검증 Tool
-db_server.py    : SQLite 획수/오행 필터 Tool
+rag_server.py   : ChromaDB 한자/이름/법령/수리 검색 Tool
+graph_server.py : Neo4j 인명용 한자 규정 + 상생/상극 탐색 Tool
+db_server.py    : SQLite 획수/오행 필터 + 81수리 4격 연산 Tool
 law_server.py   : 국가법령정보 API + 우리말샘 API Tool
     ↓
 [6단계 — LLM 답변 생성]
 OpenAI API + 출처 라벨 포함
-[한자: 자원오행표 木오행] [법령: 가족관계등록법 제44조] [통계: 빈도 하위 10%]
+[한자: 자원오행표 木오행] [법령: 가족관계등록법 제44조] [수리: 81수리 16격 吉]
+면책 고지: 추천 이름의 출생신고 가능 여부를 100% 보장하지 않음
     ↓
 [7단계 — sLLM 파인튜닝 (병렬 진행)]
-작명 조건 QA 데이터셋 구성 → QLoRA 파인튜닝 (EXAONE-3.5-2.4B 등)
+작명 조건 QA 데이터셋 구성 (CoT 방식) → QLoRA 파인튜닝 (EXAONE-3.5-2.4B)
 RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 ```
 
@@ -105,8 +131,8 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 
 ```
 노드
-  Hanja    : 한자, 음, 뜻, 획수, 자원오행, 발음오행
-  Law      : 법령명, 조문번호 (가족관계등록법, 인명용 한자 규정)
+  Hanja    : 한자, 음, 뜻, 획수(원획법), 자원오행, 발음오행
+  Law      : 법령명, 조문번호 (가족관계등록법, 인명용 한자 규정 대법원규칙)
   Category : 오행 분류 (木火土金水), 뜻 이미지 (밝음/강함/지혜 등)
   Name     : 순우리말 이름, 뜻, 어감
   Chunk    : 텍스트 청크, 임베딩 벡터
@@ -116,9 +142,14 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
   (Hanja)-[PERMITTED_BY]->(Law)         ← 인명용 한자 규정 허용 여부 핵심
   (Law)-[HAS_ARTICLE]->(Chunk)
   (Name)-[HAS_SOUND]->(Category)        ← 발음 오행 연결
+  (Category)-[GENERATES]->(Category)    ← 상생 관계 (木→火→土→金→水→木)
+  (Category)-[CONTROLS]->(Category)     ← 상극 관계 (木→土, 土→水, 水→火, 火→金, 金→木)
 ```
 
-활용 시나리오: "이 한자가 인명용으로 허용되는가", 오행별 한자 탐색, 법령 근거 제시
+활용 시나리오:
+- "이 한자가 인명용으로 허용되는가" → PERMITTED_BY 엣지 존재 여부 탐색
+- "오행 상생 조합으로 어울리는 이름" → GENERATES 관계 Graph Traversal
+- "성씨 오행과 상극 없는 한자 추천" → CONTROLS 관계 역탐색으로 제외
 
 ---
 
@@ -126,26 +157,48 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 
 ```
 ① 한자 데이터
-   Unihan TXT 파싱 (획수/뜻/음 추출)
+   Unihan TXT 파싱 (kKangXi 획수 기준)
        ↓
-   자원오행 XLSX 병합 → 한자별 통합 JSON
+   자원오행 XLSX + peoplehanja.json 병합 → 한자별 통합 JSON
        ↓
-   ChromaDB / Neo4j / SQLite 인덱싱
+   ChromaDB (객체 단위 인덱싱 + 메타데이터 필터)
+   Neo4j / SQLite 인덱싱
 
 ② 법령/이름 문서
-   PDF 파싱 (pdfplumber) / API 텍스트 수신
+   PDF 파싱 (pdfplumber) — 가족관계등록법/대법원규칙 (텍스트 추출 가능)
+   이미지 기반 PDF (hanja.pdf) → OCR 처리
        ↓
    KoNLPy (Okt) 형태소 분석
        ↓
    불용어 제거 + 특수문자 정규화
        ↓
    청킹 전략 비교 실험
-       ├─ Fixed-size Chunking          (chunk_size=500)
-       ├─ RecursiveCharacterTextSplitter
-       └─ Semantic Chunking            (임베딩 유사도 기반)
+       ├─ Fixed-size Chunking          (chunk_size=500) — 단순, 맥락 단절 위험
+       ├─ RecursiveCharacterTextSplitter — 조항 단위 분할, 법령에 적합
+       └─ Semantic Chunking            (임베딩 유사도 기반) — 품질 최고, 비용 높음
+   법령은 조항(Article) 단위 맞춤 파서 적용 필수
        ↓
    ChromaDB / Neo4j 인덱싱
 ```
+
+---
+
+## 81수리 연산 로직
+
+성씨 획수 + 이름 획수 조합으로 원격(元格)·형격(亨格)·이격(利格)·정격(貞格) 4격 도출:
+
+```
+성(姓) 획수: S
+이름 첫째 자 획수: A
+이름 둘째 자 획수: B (두 글자 이름 기준)
+
+원격(초년운) = S + A
+형격(청년운) = A + B
+이격(중년운) = S + A + B
+정격(총운)   = S + A + B (81 초과 시 mod 81)
+```
+
+→ db_server.py의 SQLite 쿼리에서 역산: "정격이 吉수가 되는 A, B 조합" 필터링
 
 ---
 
@@ -169,7 +222,7 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 | Day 54 - RAG 3단계 파이프라인 | 전체 구조 |
 | Day 54 - RecursiveCharacterTextSplitter | 법령/이름 문서 청킹 |
 | Day 54 - 청킹 전략 비교 | Fixed-size / Recursive / Semantic 실험 |
-| Day 55 - LangGraph Router 분기 | 질문 의도 분류 (4방향) |
+| Day 55 - LangGraph Router 분기 | 질문 의도 분류 (4방향 + ReAct 루프) |
 | Day 55 - 기업문서 VectorDB 인덱싱 | 한자/법령 ChromaDB 저장 |
 | Day 55 - 출처 포함 답변 (source_items) | 오행표 + 법령 출처 라벨 |
 | Day 56 - FastMCP RAG 서버 | 검색 Tool 분리 |
@@ -178,15 +231,15 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 
 ---
 
-## 팀 역할 분담 (예시)
+## 팀 역할 분담
 
 | 역할 | 담당 업무 |
 |---|---|
-| 데이터 담당 | Unihan 파싱 + 오행 XLSX 병합, 우리말 이름 PDF 파싱, KoNLPy 전처리, ChromaDB 인덱싱 |
-| Graph DB 담당 | Neo4j 스키마 설계, 한자-오행-법령 관계 인덱싱, graph_server.py |
-| 백엔드 담당 | LangGraph StateGraph 설계, Router 구현 (4방향), 폴백 캐싱 로직 |
+| 데이터 담당 | Unihan 파싱(kKangXi 기준) + 오행 XLSX + peoplehanja 병합, 법령 PDF 파싱, KoNLPy 전처리, ChromaDB 인덱싱 |
+| Graph DB 담당 | Neo4j 스키마 설계, 한자-오행-법령-상생/상극 관계 인덱싱, graph_server.py |
+| 백엔드 담당 | LangGraph StateGraph 설계, Router 구현 (4방향 + ReAct), 81수리 역산 로직, 폴백 캐싱 로직 |
 | MCP 담당 | FastMCP 서버 구현 (rag / graph / db / law) |
-| LLM/평가 담당 | 프롬프트 설계, 출처 포함 답변, LLM-as-a-Judge 평가, sLLM 파인튜닝 (병렬) |
+| LLM/평가 담당 | 프롬프트 설계, 출처 라벨링, LLM-as-a-Judge 평가, sLLM QLoRA 파인튜닝 (병렬) |
 
 ---
 
@@ -194,24 +247,28 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 
 ```
 1주차
-├─ Day 1  : Unihan TXT 파싱 + 자원오행 XLSX 병합 → 한자 통합 JSON 구성
-│           국가법령정보 API 키 발급 + 인명용 한자 규정 수집
-├─ Day 2  : 우리말 이름 PDF 파싱 + KoNLPy 전처리 + 청킹 전략 비교 실험 (3종)
-├─ Day 3  : ChromaDB 인덱싱 + Neo4j 스키마 설계 (한자-오행-법령 관계)
-├─ Day 4  : LangGraph StateGraph 기본 구조 설계 (4방향 Router)
+├─ Day 1  : Unihan TXT 파싱 (kKangXi 기준) + 자원오행 XLSX + peoplehanja 병합 → 한자 통합 JSON
+│           이름 통계 API (사법정보공유포털) 계정 생성 + 승인 신청 (심사 수일 소요)
+│           국가법령정보 API 키 발급
+├─ Day 2  : 법령 PDF 파싱 (가족관계등록법, 대법원규칙) + KoNLPy 전처리
+│           우리말 이름 PDF 파싱 + 청킹 전략 비교 실험 (3종)
+├─ Day 3  : ChromaDB 인덱싱 + Neo4j 스키마 설계 (상생/상극 엣지 포함)
+├─ Day 4  : LangGraph StateGraph 기본 구조 설계 (4방향 Router + ReAct 루프)
 └─ Day 5  : FastMCP 서버 구현 (rag / graph / db / law)
 
 2주차
 ├─ Day 1  : Router 분기 완성 + 외부 API 폴백 + ChromaDB 캐싱 로직
-├─ Day 2  : 프롬프트 최적화 + 조건 충족 근거 + 출처 포함 답변 완성
+│           81수리 4격 역산 알고리즘 구현 (db_server.py)
+├─ Day 2  : 프롬프트 최적화 + 조건 충족 근거 + 출처 포함 답변 + 면책 고지 완성
 ├─ Day 3  : Ground Truth QA 셋 구성 + LLM-as-a-Judge 평가 파이프라인
-│           (병렬) sLLM 파인튜닝 데이터셋 구성 + QLoRA 학습 시작
+│           (병렬) sLLM 파인튜닝 데이터셋 구성 (CoT 방식) + QLoRA 학습 시작
 ├─ Day 4  : BLEU/ROUGE 측정 + LM-Eval 벤치마크 + 테스트 결과 보고서 작성
 └─ Day 5  : 통합 테스트 + 발표 시연 시나리오 구성
 ```
 
-> **주의**: Unihan 파싱 + 오행 병합(Day 1)이 완료되지 않으면 이후 인덱싱 전체가 지연됨.
-> Day 1 완료 기준: 한자별 (음/뜻/획수/오행) 통합 JSON 로컬 저장 확인.
+> **크리티컬 패스**: Unihan 파싱 + 오행 병합(Day 1)이 완료되지 않으면 이후 인덱싱 전체 지연.
+> Day 1 완료 기준: 한자별 (음/뜻/획수/자원오행/발음오행) 통합 JSON 로컬 저장 확인.
+> **이름 통계 API**: 즉시 발급이 아니므로 Day 1에 반드시 선제 신청.
 
 ---
 
@@ -221,16 +278,21 @@ RAG 파이프라인 완성 후 전담 담당자가 병렬로 진행
 |---|---|---|---|
 | 핵심 차별화 | 조건 기반 이름 추천 + **법령 적법성 검증** | 기업-공시 관계 탐색 | 내규 vs 법령 비교 |
 | RAG 근거 | 오행표 + 인명용 한자 규정 | 사업보고서 본문 | 취업규칙 + 노동법령 |
-| Graph DB 활용 | 한자-오행-법령 연결 | 기업-보고서-섹션 | 법령-조항-내규 |
-| 데이터 사전 준비 | Unihan + 오행표 수집 완료 | DART API 즉시 발급 | 법령 API 즉시 발급 |
+| Graph DB 활용 | 한자-오행-법령-상생/상극 연결 | 기업-보고서-섹션 | 법령-조항-내규 |
+| 데이터 사전 준비 | Unihan + 오행표 + 법령 PDF 수집 완료 | DART API 즉시 발급 | 법령 API 즉시 발급 |
 | 발표 차별화 | 독창적 도메인 | 실제 금융 데이터 | 청중 공감도 높음 |
 | 대주제 부합도 | 법령 문서 추가로 RAG 성격 강화 | 매우 높음 | 매우 높음 |
+
+---
 
 ## 제약 및 리스크
 
 | 항목 | 내용 | 대응 |
 |---|---|---|
-| 오행 유파 기준 상이 | 유파마다 오행 분류가 다름 | 자원오행 1가지 기준으로 고정 후 명시 |
+| 획수 기준 상이 | Unihan 필획법 vs 성명학 원획법(kKangXi) 차이 | kKangXi 기준 통일, SQLite에 두 값 모두 저장 |
+| 오행 유파 기준 상이 | 해례본(ㅁㅂㅍ=土) vs 운해본(ㅁㅂㅍ=水) | 자원오행 1가지 기준으로 고정 후 출처 명시 |
 | 법적 등록 가능 여부 | 추천 이름의 출생신고 가능 여부 완전 보장 불가 | 인명용 한자 규정 근거 제시 + 면책 고지 |
-| 우리말 이름 PDF 수집 | 국립국어원 PDF 파싱 품질 편차 가능 | pdfplumber 적용, 스캔본 시 OCR 추가 검토 |
-| 동음이의 한자 조합 폭발 | 같은 음의 한자 다수 시 조합 수 급증 | 인명용 한자 + 빈도 상위 필터링으로 제한 |
+| 우리말 이름 PDF | 스캔본 시 파싱 품질 편차 | pdfplumber 시도 후 품질 미달 시 OCR 적용 |
+| 동음이의 한자 조합 폭발 | 같은 음의 한자 다수 시 조합 수 급증 | 인명용 한자(4,975자) + 빈도 상위 필터링으로 제한 |
+| 이름 통계 API 승인 지연 | 사법정보공유포털 승인 수일 소요 | Day 1 선제 신청, 승인 전 이름현황 XLS로 대체 |
+| hanja.pdf OCR | 이미지 기반 PDF, 한자 폰트 깨짐 가능 | OCR + 수작업 검증, peoplehanja.json으로 보완 |

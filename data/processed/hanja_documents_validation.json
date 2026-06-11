@@ -1,0 +1,21 @@
+{
+  "source": "C:\\python-src\\3rd_PROJECT\\third_project\\SKN29-3rd-4Team\\data\\processed\\unihan_maping\\hanja_unicode_ohaeng_verified_corrected.json",
+  "output": "C:\\python-src\\3rd_PROJECT\\third_project\\SKN29-3rd-4Team\\data\\processed\\hanja_documents.json",
+  "status": "ok",
+  "ok": true,
+  "source_rows": 2420,
+  "document_rows": 2420,
+  "source_count": 2420,
+  "document_count": 2420,
+  "issue_count": 0,
+  "issues": [],
+  "source_issues": [],
+  "document_issues": [],
+  "sample_ids": [
+    "hanja_OHE-00001",
+    "hanja_OHE-00002",
+    "hanja_OHE-00003",
+    "hanja_OHE-00004",
+    "hanja_OHE-00005"
+  ]
+}

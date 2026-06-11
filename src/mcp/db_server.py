@@ -12,6 +12,7 @@ db_server.py — 수리/오행 연산 MCP 서버
 
 import os
 import json
+import pandas as pd
 from fastmcp import FastMCP
 
 mcp = FastMCP("DBServer")
@@ -338,6 +339,66 @@ def lookup_ohaeng_combo(element1: str, element2: str, element3: str) -> str:
     body = f"운세 풀이:\n  {desc}"
 
     return header + relation_text + body
+
+
+# ═══════════════════════════════════════════════════════
+# Tool 4: 이름 빈도 통계 조회
+# ═══════════════════════════════════════════════════════
+_NAME_STATS_PATH = os.path.join(DATA_DIR, "2016_2026상위_출생신고_이름_현황.xls")
+_name_stats_cache: pd.DataFrame | None = None
+
+
+def _load_name_stats() -> pd.DataFrame:
+    global _name_stats_cache
+    if _name_stats_cache is None:
+        _name_stats_cache = pd.read_excel(_NAME_STATS_PATH, header=0)
+    return _name_stats_cache
+
+
+@mcp.tool()
+def search_name_stats(name: str) -> str:
+    """
+    2016~2026년 출생신고 이름 현황에서 특정 이름의 빈도 통계를 조회합니다.
+
+    호출 조건:
+      - 추천 이름이 실제로 많이 쓰이는 이름인지 확인할 때
+      - 사용자가 "이 이름이 흔한 편인가요?"라고 물었을 때
+
+    Args:
+        name: 조회할 이름 (예: "서연", "민준")
+
+    Returns:
+        해당 이름의 순위, 비율, 건수 정보
+    """
+    try:
+        df = _load_name_stats()
+    except FileNotFoundError:
+        return f"[오류] 이름 통계 파일을 찾을 수 없습니다: {_NAME_STATS_PATH}"
+    except Exception as e:
+        return f"[오류] 파일 로드 실패: {str(e)}"
+
+    # 이름 컬럼 자동 탐색 (컬럼명이 다를 수 있음)
+    name_col = None
+    for col in df.columns:
+        if "이름" in str(col) or "성명" in str(col):
+            name_col = col
+            break
+    if name_col is None:
+        name_col = df.columns[1]  # 일반적으로 2번째 컬럼
+
+    matched = df[df[name_col].astype(str).str.contains(name, na=False)]
+
+    if matched.empty:
+        return (
+            f"[결과 없음] '{name}'은(는) 2016~2026년 출생신고 상위 이름 목록에 없습니다.\n"
+            f"흔하지 않은 이름이거나 독특한 이름일 가능성이 높습니다."
+        )
+
+    lines = [f"[이름 빈도 통계] '{name}' 검색 결과\n"]
+    for _, row in matched.iterrows():
+        lines.append("  " + " / ".join(f"{col}: {val}" for col, val in row.items() if pd.notna(val)))
+
+    return "\n".join(lines)
 
 
 # ─────────────────────────────────────────────

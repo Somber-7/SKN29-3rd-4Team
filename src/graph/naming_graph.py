@@ -20,10 +20,18 @@ naming_graph.py — 작명 QA LangGraph StateGraph
 
 from __future__ import annotations
 
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "mcp"))
+
 from typing import TypedDict, Literal
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
+import rag_server
+import db_server
+import law_server
 
 
 # ─────────────────────────────────────────────
@@ -75,9 +83,27 @@ def route_selector(state: NamingState) -> RouteType:
 # ─────────────────────────────────────────────
 
 def internal_rag_node(state: NamingState) -> NamingState:
-    """ChromaDB에서 수리/오행/법령 문서를 검색합니다."""
-    # TODO: rag_server.py의 search_rag Tool 연결
-    context = f"[internal_rag] '{state['query']}' 검색 결과 (미구현 — ChromaDB 연결 필요)"
+    """ChromaDB에서 수리/오행/한자/법령/순우리말 문서를 검색합니다."""
+    query = state["query"]
+    results = []
+
+    # 질문 키워드로 적합한 컬렉션 선택
+    if any(kw in query for kw in {"수리", "4격", "원격", "형격", "이격", "정격", "운세"}):
+        results.append(rag_server.search_rag(query, "suri_col"))
+    if any(kw in query for kw in {"오행", "상생", "상극", "목화토금수", "木", "火", "土", "金", "水"}):
+        results.append(rag_server.search_rag(query, "ohaeng_col"))
+    if any(kw in query for kw in {"한자", "획수", "뜻", "음", "독음", "추천"}):
+        results.append(rag_server.search_rag(query, "hanja_col"))
+    if any(kw in query for kw in {"법령", "조항", "조문", "출생신고", "인명용"}):
+        results.append(rag_server.search_rag(query, "law_col"))
+    if any(kw in query for kw in {"순우리말", "우리말", "이름 뜻", "이름 추천"}):
+        results.append(rag_server.search_rag(query, "urimalsam_col"))
+
+    # 아무 키워드도 없으면 hanja_col 기본 검색
+    if not results:
+        results.append(rag_server.search_rag(query, "hanja_col"))
+
+    context = "\n\n".join(results)
     return {**state, "context": context}
 
 
@@ -89,16 +115,58 @@ def graph_db_node(state: NamingState) -> NamingState:
 
 
 def sql_db_node(state: NamingState) -> NamingState:
-    """SQLite에서 한자 획수/오행/뜻을 조회합니다."""
-    # TODO: db_server.py의 calculate_name_suri / find_lucky_strokes Tool 연결
-    context = f"[sql_db] '{state['query']}' 획수/수리 조회 결과 (미구현 — SQLite 연결 필요)"
+    """81수리 4격 계산 또는 吉수 조합 역산을 수행합니다."""
+    query = state["query"]
+
+    # 획수 역산 요청 감지: "어울리는 획수", "吉수 조합" 등
+    if any(kw in query for kw in {"어울리는 획수", "吉수", "획수 조합", "역산"}):
+        # 성씨 획수 파싱 시도 (예: "김씨" → 金=8)
+        import re
+        nums = re.findall(r"\d+", query)
+        surname_strokes = int(nums[0]) if nums else 8
+        context = db_server.find_lucky_strokes(surname_strokes)
+    elif any(kw in query for kw in {"오행 조합", "오행 궁합"}):
+        # 오행 3요소 파싱 시도
+        ohaeng = re.findall(r"[木火土金水]", query)
+        if len(ohaeng) >= 3:
+            context = db_server.lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2])
+        else:
+            context = "[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요."
+    else:
+        # 기본: 획수 입력으로 4격 계산
+        import re
+        nums = re.findall(r"\d+", query)
+        if len(nums) >= 3:
+            context = db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2]))
+        else:
+            context = db_server.find_lucky_strokes(int(nums[0]) if nums else 8)
+
     return {**state, "context": context}
 
 
 def external_api_node(state: NamingState) -> NamingState:
     """국가법령정보 API 또는 우리말샘 API를 호출합니다."""
-    # TODO: law_server.py의 search_law / verify_korean_word Tool 연결
-    context = f"[external_api] '{state['query']}' 법령/우리말샘 조회 결과 (미구현 — API 키 필요)"
+    query = state["query"]
+    results = []
+
+    # 순우리말 단어 검증 요청
+    if any(kw in query for kw in {"검증", "실제 단어", "존재하는"}):
+        import re
+        # 따옴표 또는 '이름:' 패턴에서 단어 추출 시도
+        words = re.findall(r"['\"]([가-힣]+)['\"]", query)
+        if not words:
+            words = re.findall(r"([가-힣]{2,4})(?:이|가|은|는|이라는|라는)", query)
+        for word in words[:3]:
+            results.append(law_server.verify_korean_word(word))
+
+    # 법령 조문 조회 요청
+    if any(kw in query for kw in {"법령", "조항", "조문", "가족관계", "출생신고", "인명용"}):
+        results.append(law_server.search_law(query))
+
+    if not results:
+        results.append(law_server.search_law(query))
+
+    context = "\n\n".join(results)
     return {**state, "context": context}
 
 

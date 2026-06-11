@@ -36,7 +36,7 @@ _embedding_fn = SentenceTransformerEmbeddingFunction(
 )
 
 # 사용 가능한 컬렉션 목록 (인덱싱 완료된 것만 추가)
-_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col"]
+_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col"]
 
 
 def _get_collection(name: str):
@@ -61,14 +61,15 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
       - 수리/오행/한자/법령 관련 질문에 대한 내부 지식 검색 시
 
     컬렉션 선택 기준:
-      - suri_col   : 수리, 4격, 운세, 초년운/청년운/중년운/총운 관련 질문
-      - ohaeng_col : 오행, 상생, 상극, 木火土金水 조합 관련 질문
-      - hanja_col  : 한자 뜻, 획수, 음(독음), 추천 관련 질문
-      - law_col    : 법령, 인명용 한자, 출생신고, 작명 규정 관련 질문
+      - suri_col      : 수리, 4격, 운세, 초년운/청년운/중년운/총운 관련 질문
+      - ohaeng_col    : 오행, 상생, 상극, 木火土金水 조합 관련 질문
+      - hanja_col     : 한자 뜻, 획수, 음(독음), 추천 관련 질문
+      - law_col       : 법령, 인명용 한자, 출생신고, 작명 규정 관련 질문
+      - urimalsam_col : 순우리말 이름, 이름 뜻, 성별 경향, 최근 추세 관련 질문
 
     Args:
         query: 검색 질문 (자연어 그대로 입력)
-        collection: 검색할 컬렉션 이름 (suri_col / ohaeng_col / hanja_col / law_col)
+        collection: 검색할 컬렉션 이름 (suri_col / ohaeng_col / hanja_col / law_col / urimalsam_col)
         n_results: 반환할 문서 수 (기본값: 5, 최대: 10)
 
     Returns:

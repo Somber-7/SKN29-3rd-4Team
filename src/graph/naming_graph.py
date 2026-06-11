@@ -45,7 +45,9 @@ import law_server
 
 NextAction = Literal["internal_rag", "graph_db", "sql_db", "external_api", "generate"]
 
-MAX_ITERATIONS = 5  # 무한 루프 방지
+MAX_ITERATIONS = 5   # 무한 루프 방지
+CONTEXT_MAX_CHARS = 8000  # context 누적 상한 (토큰 초과 방지)
+VALID_TOOLS = {"internal_rag", "graph_db", "sql_db", "external_api", "generate"}
 
 
 class NamingState(TypedDict):
@@ -54,6 +56,7 @@ class NamingState(TypedDict):
     next_action: NextAction # LLM이 결정한 다음 액션
     answer: str             # 최종 답변
     iterations: int         # 현재 반복 횟수
+    used_tools: list[str]   # 이미 실행한 Tool 이력 (중복 방지)
 
 
 # ─────────────────────────────────────────────
@@ -82,27 +85,52 @@ _ROUTER_SYSTEM = """당신은 작명 QA 시스템의 라우터입니다.
 
 [규칙]
 - 반드시 아래 JSON 형식으로만 답하세요. 다른 텍스트는 절대 포함하지 마세요.
-- 정보가 충분히 수집됐으면 generate를 선택하세요.
-- 같은 Tool을 반복 실행하지 마세요.
+- 이미 실행한 Tool 목록에 있는 Tool은 선택하지 마세요.
+- 필요한 Tool을 모두 실행했거나 정보가 충분하면 generate를 선택하세요.
 
 {"next": "tool이름", "reason": "선택 이유 한 줄"}"""
+
+
+def _parse_next_action(raw: str, used_tools: list[str]) -> NextAction:
+    """LLM 응답에서 next_action을 파싱합니다. 실패 시 generate 반환."""
+    # JSON 블록 추출 시도 (```json ... ``` 또는 { ... })
+    for pattern in (r"```json\s*(\{.*?\})\s*```", r"(\{[^{}]*\})"):
+        match = re.search(pattern, raw, re.DOTALL)
+        if match:
+            try:
+                parsed = json.loads(match.group(1))
+                action = parsed.get("next", "")
+                if action in VALID_TOOLS and action not in used_tools:
+                    return action  # type: ignore[return-value]
+                if action == "generate":
+                    return "generate"
+            except (json.JSONDecodeError, AttributeError):
+                continue
+    return "generate"
 
 
 def llm_router_node(state: NamingState) -> NamingState:
     """LLM이 다음 실행할 Tool을 판단합니다."""
     iterations = state.get("iterations", 0)
+    used_tools = state.get("used_tools", [])
 
     # 최대 반복 초과 시 강제 generate
     if iterations >= MAX_ITERATIONS:
         return {**state, "next_action": "generate", "iterations": iterations}
 
-    context_summary = state["context"] if state["context"] else "없음"
+    # context 길이 제한 — 초과 시 앞부분 잘라냄
+    context = state["context"]
+    if len(context) > CONTEXT_MAX_CHARS:
+        context = "...(앞부분 생략)...\n" + context[-CONTEXT_MAX_CHARS:]
+
+    used_tools_str = ", ".join(used_tools) if used_tools else "없음"
 
     messages = [
         SystemMessage(content=_ROUTER_SYSTEM),
         HumanMessage(content=(
             f"[사용자 질문]\n{state['query']}\n\n"
-            f"[지금까지 수집된 정보]\n{context_summary}\n\n"
+            f"[이미 실행한 Tool]\n{used_tools_str}\n\n"
+            f"[지금까지 수집된 정보 요약]\n{context if context else '없음'}\n\n"
             f"다음에 실행할 Tool을 JSON으로 답하세요."
         )),
     ]
@@ -113,15 +141,7 @@ def llm_router_node(state: NamingState) -> NamingState:
     # <think>...</think> 태그 제거 (Qwen 추론 모드 대응)
     raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
 
-    # JSON 파싱
-    try:
-        json_match = re.search(r"\{.*?\}", raw, re.DOTALL)
-        parsed = json.loads(json_match.group()) if json_match else {}
-        next_action: NextAction = parsed.get("next", "generate")
-        if next_action not in ("internal_rag", "graph_db", "sql_db", "external_api", "generate"):
-            next_action = "generate"
-    except Exception:
-        next_action = "generate"
+    next_action = _parse_next_action(raw, used_tools)
 
     return {**state, "next_action": next_action, "iterations": iterations + 1}
 
@@ -154,7 +174,8 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "hanja_col"))
 
     new_context = state["context"] + "\n\n[internal_rag 결과]\n" + "\n\n".join(results)
-    return {**state, "context": new_context, "next_action": "generate"}
+    return {**state, "context": new_context, "next_action": "generate",
+            "used_tools": state.get("used_tools", []) + ["internal_rag"]}
 
 
 def graph_db_node(state: NamingState) -> NamingState:
@@ -162,7 +183,8 @@ def graph_db_node(state: NamingState) -> NamingState:
     # graph_server.py 팀원 작업 완료 후 연결 예정
     result = "[graph_db] Neo4j 연결 대기 중 (팀원 작업 후 활성화)"
     new_context = state["context"] + "\n\n[graph_db 결과]\n" + result
-    return {**state, "context": new_context, "next_action": "generate"}
+    return {**state, "context": new_context, "next_action": "generate",
+            "used_tools": state.get("used_tools", []) + ["graph_db"]}
 
 
 def sql_db_node(state: NamingState) -> NamingState:
@@ -187,7 +209,8 @@ def sql_db_node(state: NamingState) -> NamingState:
             result = db_server.find_lucky_strokes(int(nums[0]) if nums else 8)
 
     new_context = state["context"] + "\n\n[sql_db 결과]\n" + result
-    return {**state, "context": new_context, "next_action": "generate"}
+    return {**state, "context": new_context, "next_action": "generate",
+            "used_tools": state.get("used_tools", []) + ["sql_db"]}
 
 
 def external_api_node(state: NamingState) -> NamingState:
@@ -209,7 +232,8 @@ def external_api_node(state: NamingState) -> NamingState:
         results.append(law_server.search_law(query))
 
     new_context = state["context"] + "\n\n[external_api 결과]\n" + "\n\n".join(results)
-    return {**state, "context": new_context, "next_action": "generate"}
+    return {**state, "context": new_context, "next_action": "generate",
+            "used_tools": state.get("used_tools", []) + ["external_api"]}
 
 
 # ─────────────────────────────────────────────
@@ -308,6 +332,7 @@ if __name__ == "__main__":
             "next_action": "generate",
             "answer": "",
             "iterations": 0,
+            "used_tools": [],
         })
         print(f"반복 횟수: {result['iterations']}")
         print(f"답변: {result['answer'][:120]}...")

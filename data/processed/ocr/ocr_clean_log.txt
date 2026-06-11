@@ -1,7 +1,7 @@
 === OCR 정제 로그 ===
 
-입력: D:\prj0617\SKN29-3rd-4Team\data\processed\ocr\ocr_raw_full.txt
-출력: D:\prj0617\SKN29-3rd-4Team\data\processed\ocr\ocr_cleaned.txt
+입력: D:\prj0617_2\SKN29-3rd-4Team\data\processed\ocr\ocr_raw_full.txt
+출력: D:\prj0617_2\SKN29-3rd-4Team\data\processed\ocr\ocr_cleaned.txt
 
 [ 수정 통계 ]
   header_removed: 405
@@ -10,6 +10,12 @@
   particle_fixed: 3356
   eotda_fixed: 279
   marker_fixed: 349
+  quote_particle_fixed: 246
+  space_particle_fixed: 1430
+  noise_bracket_fixed: 53
+  double_mi_fixed: 4
+  def_marker_at_fixed: 1209
+  false_pos_restored: 10
 
 [ 변경 샘플 (최대 200건) ]
 L25 [헤더삭제] '60'

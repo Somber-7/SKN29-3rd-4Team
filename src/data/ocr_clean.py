@@ -15,9 +15,9 @@ ocr_raw_full.txt → ocr_cleaned.txt
 import re
 import os
 
-INPUT  = r"D:\prj0617\SKN29-3rd-4Team\data\processed\ocr\ocr_raw_full.txt"
-OUTPUT = r"D:\prj0617\SKN29-3rd-4Team\data\processed\ocr\ocr_cleaned.txt"
-LOG    = r"D:\prj0617\SKN29-3rd-4Team\data\processed\ocr\ocr_clean_log.txt"
+INPUT  = r"D:\prj0617_2\SKN29-3rd-4Team\data\processed\ocr\ocr_raw_full.txt"
+OUTPUT = r"D:\prj0617_2\SKN29-3rd-4Team\data\processed\ocr\ocr_cleaned.txt"
+LOG    = r"D:\prj0617_2\SKN29-3rd-4Team\data\processed\ocr\ocr_clean_log.txt"
 
 # ── 1. 품사 태그 패턴 ─────────────────────────────────────────────────────────
 # OCR 변형: '명], [명_, 명!, 명;, 명,  / 같은 방식으로 동·형·부·관·수·대·감·접사·의존명사
@@ -124,11 +124,105 @@ def fix_eotda(line):
 EX_MARKER = re.compile(r'(?<!\d)(끼)(?=[가-힣\s])')
 EX_9      = re.compile(r'(?:^|\s)(9)(\s+)([가-힣])')   # 9 뒤에 한글
 
+# ── 7. 공백 경계 조사 오인식: 틀/름/률 → 를, 논/눈 → 는 ───────────────────
+# 조건: 앞에 한글 2글자 이상 + 뒤에 공백/구두점 (복합어 첫음절 보호)
+# 제외: 앞 1글자+대상글자가 실제 내용어를 이루는 경우
+PROTECT_REUL = {
+    # 름 계열: 이름·나름·아름 등 름으로 끝나는 내용어
+    '이름', '나름', '아름', '거름', '고름', '노름', '오름',
+    '보름', '구름', '지름', '부름', '모름', '사름',
+    # 틀 계열: 기틀·씨틀·베틀 등 틀로 끝나는 내용어
+    '기틀', '씨틀', '베틀', '발틀', '이틀',
+}
+PROTECT_NON = {
+    # 눈 계열: 군눈·곁눈 등 눈으로 끝나는 내용어
+    '군눈', '곁눈', '외눈', '왼눈',
+}
+
+SPACE_REUL_PAT = re.compile(r'([가-힣]{2})[틀름률](?=[\s\]\)\.,;:\'\"\<\>])')
+SPACE_NON_PAT  = re.compile(r'([가-힣]{2})[논눈](?=[\s\]\)\.,;:\'\"\<\>])')
+
+def fix_space_particle(line):
+    def repl_reul(m):
+        last1 = m.group(1)[-1]          # 대상 바로 앞 글자
+        char  = m.group(0)[-1]           # 틀/름/률
+        if (last1 + char) in PROTECT_REUL:
+            return m.group(0)            # 내용어 → 건너뜀
+        return m.group(1) + '를'
+
+    def repl_non(m):
+        last1 = m.group(1)[-1]
+        char  = m.group(0)[-1]           # 논/눈
+        if (last1 + char) in PROTECT_NON:
+            return m.group(0)
+        return m.group(1) + '는'
+
+    new, n1 = SPACE_REUL_PAT.subn(repl_reul, line)
+    new, n2 = SPACE_NON_PAT.subn(repl_non, new)
+    return new, n1 + n2
+
+# ── 후처리: 공백 경계 규칙 false positive 복원 ──────────────────────────────
+# PROTECT_REUL에서 누락된 내용어: 엿기름(malt), 시름시름(부사), 업시름(명사)
+# 공백 경계 규칙이 내용어를 조사로 오판하여 변환한 것을 되돌림
+# 엿기름 올 → 엿기를 올 → 엿기름을  (름 복원 + 공백+올→을 동시 수정)
+FALSE_POS_FIXES = [
+    ('엿기를 올', '엿기름을'),   # 엿기름(malt) + 공간분리된 올(=을) 함께 수정
+    ('엿기를',    '엿기름'),     # 위에서 못 잡힌 경우 대비
+    ('시름시를',  '시름시름'),   # 시름시름 부사
+    ('업시를',    '업시름'),     # 업시름 명사
+]
+
+def fix_false_positives(line):
+    n = 0
+    for wrong, right in FALSE_POS_FIXES:
+        if wrong in line:
+            count = line.count(wrong)
+            line = line.replace(wrong, right)
+            n += count
+    return line, n
+
+# ── 6b. 따옴표 뒤 조사 논/눈 → 는 ──────────────────────────────────────────
+# 이 사전 어원 설명 형식: '단어' 논/눈 '뜻' → 논/눈 = 항상 조사 '는'
+# false positive 구조적으로 불가: 따옴표 닫힘 직후이므로 내용어와 혼동 없음
+QUOTE_NON = re.compile(r"(?<=['''\"‘’])\s*논(?=\s)")
+QUOTE_NUN = re.compile(r"(?<=['''\"‘’])\s*눈(?=\s)")
+
+def fix_quote_particle(line):
+    new, n1 = QUOTE_NON.subn('는', line)
+    new, n2 = QUOTE_NUN.subn('는', new)
+    return new, n1 + n2
+
+# ── 6c. 노이즈 괄호 제거 ────────────────────────────────────────────────────
+# 괄호 안에 한글이 전혀 없는 경우 → OCR 노이즈 (예: [_], [*], [6], [47], [{ {])
+# 한글 포함 태그(명, 동, 비, 참 등)는 건드리지 않음
+NOISE_BRACKET = re.compile(r'\[[^가-힣\]]{0,8}\]')
+
+def fix_noise_bracket(line):
+    new_line, n = NOISE_BRACKET.subn('', line)
+    return new_line, n
+
+# ── 6c. [[미] → [비] 오인식 수정 ───────────────────────────────────────────
+# [비](비슷한말) 앞에 [ 가 하나 더 붙고 ㅂ→ㅁ 오인식된 패턴
+DOUBLE_MI = re.compile(r'\[\[미\]')
+
+def fix_double_mi(line):
+    new_line = DOUBLE_MI.sub('[비]', line)
+    return new_line, 1 if new_line != line else 0
+
+# ── 6c. 뜻번호 마커 @ ────────────────────────────────────────────────────────
+# [명]/[동] 등 POS 태그 닫힘, 인용 끝(>), 문장 구분자(:.) 뒤에 오는 @
+# → ①②③ 역할의 뜻번호 마커이므로 ¶ 로 통일
+# 괄호 안 @(락표) 나 단어 중간 아@하다 는 건드리지 않음
+DEF_MARKER_AT = re.compile(r'(?<=[\]>:.])\s*@(?=[가-힣(])')
+
 def fix_markers(line):
     line = EX_MARKER.sub('¶', line)
-    # 9가 예문 마커로 사용된 경우 (행 앞 또는 공백 뒤)
     line = EX_9.sub(lambda m: m.group(0).replace('9', '¶'), line)
     return line
+
+def fix_def_marker_at(line):
+    new_line, n = DEF_MARKER_AT.subn(lambda m: m.group(0).replace('@', ' ¶'), line)
+    return new_line, n
 
 # ── 메인 처리 ────────────────────────────────────────────────────────────────
 
@@ -146,6 +240,12 @@ def process():
         'particle_fixed': 0,
         'eotda_fixed': 0,
         'marker_fixed': 0,
+        'quote_particle_fixed': 0,
+        'space_particle_fixed': 0,
+        'noise_bracket_fixed': 0,
+        'double_mi_fixed': 0,
+        'def_marker_at_fixed': 0,
+        'false_pos_restored': 0,
     }
 
     for lineno, line in enumerate(lines, 1):
@@ -192,6 +292,42 @@ def process():
         new_line = fix_markers(line)
         if new_line != line:
             stats['marker_fixed'] += 1
+        line = new_line
+
+        # 따옴표 뒤 조사 논/눈 → 는
+        new_line, n = fix_quote_particle(line)
+        if n:
+            stats['quote_particle_fixed'] += n
+        line = new_line
+
+        # 공백 경계 조사 오인식: 틀/름/률 → 를, 논/눈 → 는
+        new_line, n = fix_space_particle(line)
+        if n:
+            stats['space_particle_fixed'] += n
+        line = new_line
+
+        # 공백 경계 규칙 false positive 복원 (내용어 엿기름·시름시름·업시름)
+        new_line, n = fix_false_positives(line)
+        if n:
+            stats['false_pos_restored'] += n
+        line = new_line
+
+        # 노이즈 괄호 제거
+        new_line, n = fix_noise_bracket(line)
+        if n:
+            stats['noise_bracket_fixed'] += n
+        line = new_line
+
+        # [[미] → [비]
+        new_line, n = fix_double_mi(line)
+        if n:
+            stats['double_mi_fixed'] += n
+        line = new_line
+
+        # 뜻번호 마커 @
+        new_line, n = fix_def_marker_at(line)
+        if n > 0:
+            stats['def_marker_at_fixed'] += n
         line = new_line
 
         # 중복 공백 제거

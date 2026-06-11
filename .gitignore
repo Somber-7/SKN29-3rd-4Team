@@ -30,3 +30,6 @@ Thumbs.db
 # OCR 실행 로그 / 진행 상태 (로컬 전용)
 data/processed/ocr/ocr_log.txt
 data/processed/ocr/ocr_progress.json
+
+# ChromaDB (로컬 인덱싱 결과 — 각자 스크립트로 생성)
+data/chroma/

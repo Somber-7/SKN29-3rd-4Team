@@ -378,15 +378,11 @@ def search_name_stats(name: str) -> str:
         return f"[오류] 파일 로드 실패: {str(e)}"
 
     # 이름 컬럼 자동 탐색 (컬럼명이 다를 수 있음)
-    name_col = None
-    for col in df.columns:
-        if "이름" in str(col) or "성명" in str(col):
-            name_col = col
-            break
-    if name_col is None:
-        name_col = df.columns[1]  # 일반적으로 2번째 컬럼
+    # 이름 컬럼은 통상적으로 2번째 열(인덱스 1)에 위치함 (첫 행이 병합된 제목인 경우 대비)
+    name_col = df.columns[1]
 
-    matched = df[df[name_col].astype(str).str.contains(name, na=False)]
+    # contains()를 쓰면 "현" 검색 시 "지현, 서현"이 모두 나오므로 정확히 일치(==) 조건으로 변경
+    matched = df[df[name_col].astype(str).str.strip() == name.strip()]
 
     if matched.empty:
         return (
@@ -404,5 +400,72 @@ def search_name_stats(name: str) -> str:
 # ─────────────────────────────────────────────
 # 서버 실행
 # ─────────────────────────────────────────────
+SURNAME_STROKES = {
+    "김": 8, "이": 7, "박": 6, "최": 11, "정": 19, "강": 9, "조": 14, "윤": 4, 
+    "장": 11, "임": 8, "한": 17, "오": 7, "서": 10, "신": 5, "권": 22, "황": 12, 
+    "안": 6, "송": 7, "전": 6, "홍": 10, "고": 10, "문": 4, "양": 11, "손": 10, 
+    "배": 14, "백": 5, "허": 11, "유": 9, "남": 9, "심": 8, "노": 16, "하": 9,
+    "곽": 15, "성": 7, "차": 7, "주": 6, "우": 9, "구": 8, "라": 20, "민": 13
+}
+
+@mcp.tool()
+def process_sql_query(query: str) -> str:
+    """
+    사용자의 자연어 질문을 분석하여(정규식 등) 적절한 
+    통계, 오행, 획수, 4격 연산 등의 결과를 종합하여 반환합니다.
+    """
+    import re
+    context_parts = []
+
+    # 1. 빈도 통계 시나리오
+    if any(kw in query for kw in {"통계", "순위", "빈도", "흔한", "얼마나"}):
+        words = re.findall(r"['\"]([가-힣]{2,3})['\"]", query)
+        if not words:
+            words = re.findall(r"([가-힣]{2,3})(?:이라는\b|라는\b)", query)
+        if not words:
+            words = re.findall(r"([가-힣]{2,3})(?:이\b|가\b|은\b|는\b)", query)
+        name_to_search = words[0] if words else re.sub(r"[^\w\s]", "", query)[:2]
+        
+        if len(name_to_search) >= 2:
+            context_parts.append(search_name_stats(name_to_search))
+
+    # 2. 오행 궁합 시나리오
+    elif any(kw in query for kw in {"오행 조합", "오행 궁합", "오행의"}):
+        ohaeng_str = query.replace("목", "木").replace("화", "火").replace("토", "土").replace("금", "金").replace("수", "水")
+        ohaeng = re.findall(r"[木火土金水]", ohaeng_str)
+        if len(ohaeng) >= 3:
+            context_parts.append(lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2]))
+        else:
+            context_parts.append("[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요.")
+
+    # 3. 획수 역산 시나리오
+    elif any(kw in query for kw in {"어울리는 획수", "조합", "역산", "吉수"}):
+        surname = "김"
+        for s in SURNAME_STROKES.keys():
+            if re.search(rf"(?:{s}씨|{s}가|성은\s*{s}|{s}\s*성)", query):
+                surname = s
+                break
+        surname_strokes = SURNAME_STROKES.get(surname, 8)
+        context_parts.append(find_lucky_strokes(surname_strokes))
+
+    # 4. 4격 연산 직접 입력 시나리오
+    else:
+        nums = list(map(int, re.findall(r"\d+", query)))
+        if len(nums) >= 3:
+            context_parts.append(calculate_name_suri(nums[0], nums[1], nums[2]))
+        elif len(nums) == 2:
+            surname = "김"
+            for s in SURNAME_STROKES.keys():
+                if re.search(rf"(?:{s}씨|{s}가|성은\s*{s}|{s}\s*성)", query):
+                    surname = s
+                    break
+            surname_strokes = SURNAME_STROKES.get(surname, 8)
+            context_parts.append(calculate_name_suri(surname_strokes, nums[0], nums[1]))
+
+    if not context_parts:
+        context_parts.append("[안내] 수리/획수/통계 분석을 위한 조건(성씨 획수, 오행 등)을 파악하지 못했습니다.")
+
+    return "\n\n".join(context_parts)
+
 if __name__ == "__main__":
     mcp.run()

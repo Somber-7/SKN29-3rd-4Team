@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-index_law.py — 법령 전처리 결과 ChromaDB law_col 인덱싱
+index_urimalsam.py — 순우리말 이름 ChromaDB urimalsam_col 인덱싱
 
-사전 조건: python src/data/preprocess_law.py 실행 완료
-입력 파일: data/processed/law_articles.json
-출력:      ChromaDB law_col 컬렉션
+사전 조건: python src/data/crawl_urimalsam.py 실행 완료
+입력 파일: data/processed/urimalsam_names.json
+출력:      ChromaDB urimalsam_col 컬렉션
 
-실행 방법: python src/data/index_law.py
+실행 방법: python src/data/index_urimalsam.py
 """
 
 import os
@@ -23,7 +23,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # ─────────────────────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-INPUT_PATH = os.path.join(BASE_DIR, "data", "processed", "law_articles.json")
+INPUT_PATH = os.path.join(BASE_DIR, "data", "processed", "urimalsam_names.json")
 CHROMA_DIR = os.path.join(BASE_DIR, "data", "chroma")
 
 # ─────────────────────────────────────────────
@@ -42,30 +42,32 @@ BATCH = 500
 # 인덱싱
 # ─────────────────────────────────────────────
 
-def build_records(articles: list[dict]) -> list[dict]:
-    """전처리된 조항 데이터를 ChromaDB 레코드 형식으로 변환."""
+def build_records(names: list[dict]) -> list[dict]:
     records = []
     seen = set()
 
-    for a in articles:
-        doc_id = f"law_{a['source']}_{a['article_num']}"
-
-        if doc_id in seen:
+    for item in names:
+        name = item["name"]
+        if name in seen:
             continue
-        seen.add(doc_id)
+        seen.add(name)
 
-        # 인덱싱 대상 텍스트: 정규화된 원문 사용
-        text = a.get("normalized_text") or a.get("raw_text", "")
-        document = f"[{a['source']}] 제{a['article_num']}조({a['title']})\n{text}"
+        document = (
+            f"[순우리말 이름] {name}\n"
+            f"뜻: {item['meaning']}\n"
+            f"성별 경향: {item['gender']}\n"
+            f"최근 추세: {item['trend']}"
+        )
 
         records.append({
-            "id": doc_id,
+            "id": f"urimalsam_{name}",
             "document": document,
             "metadata": {
-                "source": a["source"],
-                "article_num": a["article_num"],
-                "title": a["title"],
-                "type": "law",
+                "name": name,
+                "meaning": item["meaning"],
+                "gender": item["gender"],
+                "trend": item["trend"],
+                "type": "urimalsam",
             },
         })
 
@@ -74,11 +76,11 @@ def build_records(articles: list[dict]) -> list[dict]:
 
 def index_to_chroma(records: list[dict]) -> None:
     if not records:
-        print("  인덱싱할 조항 없음")
+        print("  인덱싱할 데이터 없음")
         return
 
     col = _client.get_or_create_collection(
-        name="law_col",
+        name="urimalsam_col",
         embedding_function=_embedding_fn,
     )
 
@@ -106,17 +108,17 @@ def index_to_chroma(records: list[dict]) -> None:
 def main():
     if not os.path.exists(INPUT_PATH):
         print(f"[오류] {INPUT_PATH} 없음")
-        print("먼저 실행하세요: python src/data/preprocess_law.py")
+        print("먼저 실행하세요: python src/data/crawl_urimalsam.py")
         return
 
-    print(f"전처리 결과 로드: {INPUT_PATH}")
+    print(f"데이터 로드: {INPUT_PATH}")
     with open(INPUT_PATH, encoding="utf-8") as f:
-        articles = json.load(f)
+        names = json.load(f)
 
-    print(f"조항 수: {len(articles)}")
+    print(f"이름 수: {len(names)}")
 
-    records = build_records(articles)
-    print(f"ChromaDB 레코드: {len(records)}개 → law_col 인덱싱 시작")
+    records = build_records(names)
+    print(f"ChromaDB 레코드: {len(records)}개 → urimalsam_col 인덱싱 시작")
 
     index_to_chroma(records)
     print("\n완료")

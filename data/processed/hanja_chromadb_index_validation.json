@@ -1,0 +1,17 @@
+{
+  "status": "ok",
+  "ok": true,
+  "source": "D:\\Project\\SKN29-3rd-4Team\\data\\processed\\hanja_documents.json",
+  "chroma_path": "D:\\Project\\SKN29-3rd-4Team\\data\\chroma",
+  "collection": "hanja_col",
+  "embedding_model": "jhgan/ko-sroberta-multitask",
+  "batch_size": 500,
+  "source_count": 2420,
+  "collection_count": 2420,
+  "issue_count": 0,
+  "issues": [],
+  "sample_ids": [
+    "hanja_OHE-00001",
+    "hanja_OHE-02420"
+  ]
+}

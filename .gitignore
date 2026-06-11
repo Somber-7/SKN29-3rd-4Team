@@ -31,5 +31,5 @@ Thumbs.db
 data/processed/ocr/ocr_log.txt
 data/processed/ocr/ocr_progress.json
 
-# ChromaDB (로컬 인덱싱 결과 — 각자 스크립트로 생성)
-data/chroma/
+# ChromaDB (최종 인덱싱 완료 후 배포)
+# data/chroma/

@@ -1,27 +1,32 @@
 """
-naming_graph.py — 작명 QA LangGraph StateGraph
+naming_graph.py — 작명 QA LangGraph ReAct StateGraph
 
-사용자 입력을 4개 노드로 라우팅하고 최종 답변을 생성합니다.
+[구조]
+  LLM Router가 필요한 Tool을 판단 → Tool 실행 → 결과를 LLM에 전달
+  → 추가 Tool 필요 여부 재판단 (루프) → 충분하면 최종 답변 생성
 
 [노드 구성]
-  router       — 입력 의도 분석 후 경로 결정
-  internal_rag — ChromaDB 벡터 검색 (수리/오행/법령 문서)
+  llm_router   — LLM이 다음 실행할 Tool 결정 (또는 답변 생성 판단)
+  internal_rag — ChromaDB 벡터 검색 (한자/수리/오행/법령/순우리말)
   graph_db     — Neo4j 한자 관계 그래프 조회
-  sql_db       — SQLite 한자 속성 조회 (획수/오행/뜻)
+  sql_db       — 81수리 계산 / 吉수 역산 / 오행 조합 조회
   external_api — 국가법령정보 / 우리말샘 API 호출
   generate     — 수집된 context로 최종 답변 생성
 
-[라우팅 기준]
-  "획수", "수리", "4격", "운" 포함      → sql_db
-  "오행", "상생", "상극", "관계" 포함   → graph_db
-  "법령", "조항", "법", "순우리말" 포함 → external_api
-  나머지 (한자 뜻/추천 등)             → internal_rag
+[Tool 선택 기준 — LLM 판단]
+  internal_rag : 한자 뜻/추천, 수리 설명, 오행 설명, 법령 조문, 순우리말 이름 검색
+  sql_db       : 획수 수치 계산, 81수리 4격, 吉수 조합 역산, 오행 조합 운세
+  external_api : 법령 실시간 조회, 순우리말 단어 존재 여부 검증
+  graph_db     : 한자-오행 관계 탐색, 상생/상극 경로 탐색 (Neo4j)
+  generate     : 충분한 정보가 수집됐을 때 최종 답변 생성
 """
 
 from __future__ import annotations
 
+import re
 import sys
 import os
+import json
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "mcp"))
 
@@ -38,59 +43,106 @@ import law_server
 # State 정의
 # ─────────────────────────────────────────────
 
-RouteType = Literal["internal_rag", "graph_db", "sql_db", "external_api"]
+NextAction = Literal["internal_rag", "graph_db", "sql_db", "external_api", "generate"]
+
+MAX_ITERATIONS = 5  # 무한 루프 방지
 
 
 class NamingState(TypedDict):
-    query: str                  # 사용자 원본 질문
-    route: RouteType | None     # 라우터가 결정한 경로
-    context: str                # 각 노드가 수집한 참고 정보
-    answer: str                 # generate 노드가 생성한 최종 답변
+    query: str              # 사용자 원본 질문
+    context: str            # 누적된 Tool 실행 결과
+    next_action: NextAction # LLM이 결정한 다음 액션
+    answer: str             # 최종 답변
+    iterations: int         # 현재 반복 횟수
 
 
 # ─────────────────────────────────────────────
-# 라우터 노드
+# LLM 초기화
 # ─────────────────────────────────────────────
 
-_SQL_KEYWORDS = {"획수", "수리", "4격", "원격", "형격", "이격", "정격", "초년운", "청년운", "중년운", "총운"}
-_GRAPH_KEYWORDS = {"오행", "상생", "상극", "목화토금수", "관계", "木", "火", "土", "金", "水"}
-_LAW_KEYWORDS = {"법령", "조항", "조문", "가족관계", "출생신고", "인명용", "순우리말", "우리말"}
+_llm = ChatOllama(
+    model="qwen3:4b",
+    num_ctx=32768,
+    temperature=0.3,
+)
+
+# ─────────────────────────────────────────────
+# LLM Router 노드
+# ─────────────────────────────────────────────
+
+_ROUTER_SYSTEM = """당신은 작명 QA 시스템의 라우터입니다.
+사용자 질문과 지금까지 수집된 정보를 보고 다음에 실행할 Tool을 결정하세요.
+
+[사용 가능한 Tool]
+- internal_rag  : 한자 뜻/추천, 수리 운세 설명, 오행 조합 설명, 법령 조문, 순우리말 이름 검색
+- sql_db        : 획수 수치 계산, 81수리 4격 계산, 吉수 획수 조합 역산, 오행 조합 운세 수치 조회
+- external_api  : 국가법령정보 실시간 조회, 순우리말 단어 존재 여부 검증
+- graph_db      : 한자-오행 관계 탐색, 상생/상극 경로 탐색 (Neo4j)
+- generate      : 지금까지 수집된 정보로 최종 답변 생성 (정보가 충분할 때만 선택)
+
+[규칙]
+- 반드시 아래 JSON 형식으로만 답하세요. 다른 텍스트는 절대 포함하지 마세요.
+- 정보가 충분히 수집됐으면 generate를 선택하세요.
+- 같은 Tool을 반복 실행하지 마세요.
+
+{"next": "tool이름", "reason": "선택 이유 한 줄"}"""
 
 
-def router_node(state: NamingState) -> NamingState:
-    """키워드 기반으로 라우팅 경로를 결정합니다."""
-    query = state["query"]
+def llm_router_node(state: NamingState) -> NamingState:
+    """LLM이 다음 실행할 Tool을 판단합니다."""
+    iterations = state.get("iterations", 0)
 
-    if any(kw in query for kw in _SQL_KEYWORDS):
-        route: RouteType = "sql_db"
-    elif any(kw in query for kw in _GRAPH_KEYWORDS):
-        route = "graph_db"
-    elif any(kw in query for kw in _LAW_KEYWORDS):
-        route = "external_api"
-    else:
-        route = "internal_rag"
+    # 최대 반복 초과 시 강제 generate
+    if iterations >= MAX_ITERATIONS:
+        return {**state, "next_action": "generate", "iterations": iterations}
 
-    return {**state, "route": route}
+    context_summary = state["context"] if state["context"] else "없음"
+
+    messages = [
+        SystemMessage(content=_ROUTER_SYSTEM),
+        HumanMessage(content=(
+            f"[사용자 질문]\n{state['query']}\n\n"
+            f"[지금까지 수집된 정보]\n{context_summary}\n\n"
+            f"다음에 실행할 Tool을 JSON으로 답하세요."
+        )),
+    ]
+
+    response = _llm.invoke(messages)
+    raw = response.content.strip()
+
+    # <think>...</think> 태그 제거 (Qwen 추론 모드 대응)
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+
+    # JSON 파싱
+    try:
+        json_match = re.search(r"\{.*?\}", raw, re.DOTALL)
+        parsed = json.loads(json_match.group()) if json_match else {}
+        next_action: NextAction = parsed.get("next", "generate")
+        if next_action not in ("internal_rag", "graph_db", "sql_db", "external_api", "generate"):
+            next_action = "generate"
+    except Exception:
+        next_action = "generate"
+
+    return {**state, "next_action": next_action, "iterations": iterations + 1}
 
 
-def route_selector(state: NamingState) -> RouteType:
-    """라우터 결과를 엣지로 전달하는 조건 함수."""
-    return state["route"]
+def route_selector(state: NamingState) -> NextAction:
+    """LLM Router 결과를 엣지로 전달합니다."""
+    return state["next_action"]
 
 
 # ─────────────────────────────────────────────
-# 데이터 수집 노드 (뼈대 — 팀원 구현 연결 예정)
+# Tool 노드
 # ─────────────────────────────────────────────
 
 def internal_rag_node(state: NamingState) -> NamingState:
-    """ChromaDB에서 수리/오행/한자/법령/순우리말 문서를 검색합니다."""
+    """ChromaDB에서 한자/수리/오행/법령/순우리말 문서를 검색합니다."""
     query = state["query"]
     results = []
 
-    # 질문 키워드로 적합한 컬렉션 선택
     if any(kw in query for kw in {"수리", "4격", "원격", "형격", "이격", "정격", "운세"}):
         results.append(rag_server.search_rag(query, "suri_col"))
-    if any(kw in query for kw in {"오행", "상생", "상극", "목화토금수", "木", "火", "土", "金", "水"}):
+    if any(kw in query for kw in {"오행", "상생", "상극", "木", "火", "土", "金", "水"}):
         results.append(rag_server.search_rag(query, "ohaeng_col"))
     if any(kw in query for kw in {"한자", "획수", "뜻", "음", "독음", "추천"}):
         results.append(rag_server.search_rag(query, "hanja_col"))
@@ -98,50 +150,44 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "law_col"))
     if any(kw in query for kw in {"순우리말", "우리말", "이름 뜻", "이름 추천"}):
         results.append(rag_server.search_rag(query, "urimalsam_col"))
-
-    # 아무 키워드도 없으면 hanja_col 기본 검색
     if not results:
         results.append(rag_server.search_rag(query, "hanja_col"))
 
-    context = "\n\n".join(results)
-    return {**state, "context": context}
+    new_context = state["context"] + "\n\n[internal_rag 결과]\n" + "\n\n".join(results)
+    return {**state, "context": new_context, "next_action": "generate"}
 
 
 def graph_db_node(state: NamingState) -> NamingState:
     """Neo4j에서 한자 오행 관계를 조회합니다."""
-    # TODO: Neo4j 드라이버 연결 (팀원 인프라 구축 후)
-    context = f"[graph_db] '{state['query']}' 오행 관계 조회 결과 (미구현 — Neo4j 연결 필요)"
-    return {**state, "context": context}
+    # graph_server.py 팀원 작업 완료 후 연결 예정
+    result = "[graph_db] Neo4j 연결 대기 중 (팀원 작업 후 활성화)"
+    new_context = state["context"] + "\n\n[graph_db 결과]\n" + result
+    return {**state, "context": new_context, "next_action": "generate"}
 
 
 def sql_db_node(state: NamingState) -> NamingState:
     """81수리 4격 계산 또는 吉수 조합 역산을 수행합니다."""
     query = state["query"]
 
-    # 획수 역산 요청 감지: "어울리는 획수", "吉수 조합" 등
     if any(kw in query for kw in {"어울리는 획수", "吉수", "획수 조합", "역산"}):
-        # 성씨 획수 파싱 시도 (예: "김씨" → 金=8)
-        import re
         nums = re.findall(r"\d+", query)
         surname_strokes = int(nums[0]) if nums else 8
-        context = db_server.find_lucky_strokes(surname_strokes)
+        result = db_server.find_lucky_strokes(surname_strokes)
     elif any(kw in query for kw in {"오행 조합", "오행 궁합"}):
-        # 오행 3요소 파싱 시도
         ohaeng = re.findall(r"[木火土金水]", query)
         if len(ohaeng) >= 3:
-            context = db_server.lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2])
+            result = db_server.lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2])
         else:
-            context = "[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요."
+            result = "[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요."
     else:
-        # 기본: 획수 입력으로 4격 계산
-        import re
         nums = re.findall(r"\d+", query)
         if len(nums) >= 3:
-            context = db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2]))
+            result = db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2]))
         else:
-            context = db_server.find_lucky_strokes(int(nums[0]) if nums else 8)
+            result = db_server.find_lucky_strokes(int(nums[0]) if nums else 8)
 
-    return {**state, "context": context}
+    new_context = state["context"] + "\n\n[sql_db 결과]\n" + result
+    return {**state, "context": new_context, "next_action": "generate"}
 
 
 def external_api_node(state: NamingState) -> NamingState:
@@ -149,59 +195,54 @@ def external_api_node(state: NamingState) -> NamingState:
     query = state["query"]
     results = []
 
-    # 순우리말 단어 검증 요청
     if any(kw in query for kw in {"검증", "실제 단어", "존재하는"}):
-        import re
-        # 따옴표 또는 '이름:' 패턴에서 단어 추출 시도
         words = re.findall(r"['\"]([가-힣]+)['\"]", query)
         if not words:
             words = re.findall(r"([가-힣]{2,4})(?:이|가|은|는|이라는|라는)", query)
         for word in words[:3]:
             results.append(law_server.verify_korean_word(word))
 
-    # 법령 조문 조회 요청
     if any(kw in query for kw in {"법령", "조항", "조문", "가족관계", "출생신고", "인명용"}):
         results.append(law_server.search_law(query))
 
     if not results:
         results.append(law_server.search_law(query))
 
-    context = "\n\n".join(results)
-    return {**state, "context": context}
+    new_context = state["context"] + "\n\n[external_api 결과]\n" + "\n\n".join(results)
+    return {**state, "context": new_context, "next_action": "generate"}
 
 
 # ─────────────────────────────────────────────
 # 답변 생성 노드
 # ─────────────────────────────────────────────
 
-_SYSTEM_PROMPT = """당신은 한국 작명 전문가 AI입니다.
+_GENERATE_SYSTEM = """당신은 한국 작명 전문가 AI입니다.
 사용자의 질문과 제공된 참고 정보를 바탕으로 정확하고 친절하게 답변하세요.
 
 규칙:
 - 참고 정보에 없는 내용은 추측하지 마세요.
 - 한자 이름 추천 시 획수(원획법), 오행, 수리 4격을 함께 설명하세요.
 - 법령 관련 내용은 출처(조문 번호)를 명시하세요.
+- 출처는 [한자: 자원오행표], [법령: 가족관계등록법 제44조], [수리: 81수리 16격 吉] 형식으로 표기하세요.
+- 추천 이름의 출생신고 가능 여부를 100% 보장하지 않습니다. 반드시 면책 고지를 포함하세요.
 - 답변은 한국어로 작성하세요."""
 
 
 def generate_node(state: NamingState) -> NamingState:
     """수집된 context를 바탕으로 LLM이 최종 답변을 생성합니다."""
-    llm = ChatOllama(
-        model="qwen3.5:4b",
-        num_ctx=32768,
-        temperature=0.7,
-    )
-
     messages = [
-        SystemMessage(content=_SYSTEM_PROMPT),
+        SystemMessage(content=_GENERATE_SYSTEM),
         HumanMessage(content=(
             f"[참고 정보]\n{state['context']}\n\n"
             f"[질문]\n{state['query']}"
         )),
     ]
 
-    response = llm.invoke(messages)
-    return {**state, "answer": response.content}
+    response = _llm.invoke(messages)
+
+    # <think>...</think> 태그 제거
+    answer = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
+    return {**state, "answer": answer}
 
 
 # ─────────────────────────────────────────────
@@ -212,7 +253,7 @@ def build_graph() -> StateGraph:
     graph = StateGraph(NamingState)
 
     # 노드 등록
-    graph.add_node("router", router_node)
+    graph.add_node("llm_router", llm_router_node)
     graph.add_node("internal_rag", internal_rag_node)
     graph.add_node("graph_db", graph_db_node)
     graph.add_node("sql_db", sql_db_node)
@@ -220,23 +261,24 @@ def build_graph() -> StateGraph:
     graph.add_node("generate", generate_node)
 
     # 진입점
-    graph.set_entry_point("router")
+    graph.set_entry_point("llm_router")
 
-    # router → 4방향 조건 분기
+    # llm_router → 5방향 조건 분기
     graph.add_conditional_edges(
-        "router",
+        "llm_router",
         route_selector,
         {
             "internal_rag": "internal_rag",
             "graph_db": "graph_db",
             "sql_db": "sql_db",
             "external_api": "external_api",
+            "generate": "generate",
         },
     )
 
-    # 각 데이터 노드 → generate
+    # 각 Tool 노드 실행 후 → llm_router로 복귀 (ReAct 루프)
     for node in ["internal_rag", "graph_db", "sql_db", "external_api"]:
-        graph.add_edge(node, "generate")
+        graph.add_edge(node, "llm_router")
 
     # generate → 종료
     graph.add_edge("generate", END)
@@ -252,15 +294,21 @@ if __name__ == "__main__":
     app = build_graph()
 
     test_cases = [
-        "김씨 성에 어울리는 획수 조합 추천해줘",
+        "김씨 성에 木 오행이고 吉수인 한자 이름 추천해줘",
         "木火土 오행 조합의 상생 관계를 알려줘",
         "인명용 한자에 관한 법령을 찾아줘",
         "밝고 지혜로운 뜻의 한자를 추천해줘",
     ]
 
     for query in test_cases:
-        result = app.invoke({"query": query, "route": None, "context": "", "answer": ""})
-        print(f"질문: {query}")
-        print(f"경로: {result['route']}")
-        print(f"답변: {result['answer'][:80]}...")
+        print(f"\n질문: {query}")
+        result = app.invoke({
+            "query": query,
+            "context": "",
+            "next_action": "generate",
+            "answer": "",
+            "iterations": 0,
+        })
+        print(f"반복 횟수: {result['iterations']}")
+        print(f"답변: {result['answer'][:120]}...")
         print("-" * 60)

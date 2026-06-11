@@ -5,10 +5,11 @@ rag_server.py — ChromaDB 벡터 검색 MCP 서버 (internal_rag 노드)
 임베딩 모델: jhgan/ko-sroberta-multitask (로컬, sentence-transformers)
 
 [컬렉션 구조]
-  suri_col   — 81수리 운세 문서
-  ohaeng_col — 오행 조합 운세 문서
-  hanja_col  — 한자 뜻/음/획수 문서 (팀원 인덱싱 후 활성화)
-  law_col    — 법령 PDF 파싱 문서 (팀원 인덱싱 후 활성화)
+  suri_col      — 81수리 운세 문서
+  ohaeng_col    — 오행 조합 운세 문서
+  hanja_col     — 한자 뜻/음/획수 문서
+  law_col       — 법령 PDF 파싱 문서
+  urimalsam_col — 순우리말 이름 문서
 
 [Tool 목록]
   1. search_rag — 컬렉션 지정 의미 검색
@@ -16,6 +17,7 @@ rag_server.py — ChromaDB 벡터 검색 MCP 서버 (internal_rag 노드)
 """
 
 import os
+import re
 import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from fastmcp import FastMCP
@@ -45,6 +47,34 @@ def _get_collection(name: str):
         return _client.get_collection(name=name, embedding_function=_embedding_fn)
     except Exception:
         return None
+
+
+def _parse_hanja_conditions(query: str) -> tuple[dict | None, str]:
+    """쿼리에서 획수/오행 조건을 파싱합니다. hanja_col 전용.
+
+    Returns:
+        (where_dict, condition_desc)
+        조건이 없으면 (None, "")
+    """
+    conditions = []
+    desc_parts = []
+
+    stroke_match = re.search(r'(\d+)\s*획', query)
+    if stroke_match:
+        n = int(stroke_match.group(1))
+        conditions.append({"strokes": n})
+        desc_parts.append(f"획수 {n}획")
+
+    ohaeng_match = re.search(r'(목|화|토|금|수)오행', query)
+    if ohaeng_match:
+        o = ohaeng_match.group(1)
+        conditions.append({"resource_ohaeng": o})
+        desc_parts.append(f"자원오행 {o}")
+
+    if not conditions:
+        return None, ""
+    where = conditions[0] if len(conditions) == 1 else {"$and": conditions}
+    return where, ", ".join(desc_parts)
 
 
 # ═══════════════════════════════════════════════════════
@@ -91,8 +121,14 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
             f"ChromaDB 경로: {CHROMA_DIR}"
         )
 
+    where, cond_desc = _parse_hanja_conditions(query) if collection == "hanja_col" else (None, "")
+
     try:
-        results = col.query(query_texts=[query], n_results=n_results)
+        results = col.query(
+            query_texts=[query],
+            n_results=n_results,
+            **({"where": where} if where else {}),
+        )
     except Exception as e:
         return f"[오류] 검색 중 오류 발생: {str(e)}"
 
@@ -103,15 +139,41 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
     if not documents:
         return f"[결과 없음] '{query}'에 대한 유사 문서를 찾지 못했습니다."
 
-    lines = [f"[{collection}] '{query}' 검색 결과 {len(documents)}건\n"]
-    for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
-        similarity = round(1 - dist, 4)
-        meta_str = ", ".join(f"{k}: {v}" for k, v in (meta or {}).items())
-        lines.append(
-            f"  [{i}] 유사도: {similarity}\n"
-            f"      메타: {meta_str}\n"
-            f"      내용: {doc[:200]}{'...' if len(doc) > 200 else ''}"
-        )
+    if collection == "hanja_col":
+        filter_info = f" [조건 필터: {cond_desc}]" if cond_desc else ""
+        lines = [
+            f"[검색 결과] '{query}' — hanja_col ({len(documents)}건){filter_info}\n"
+            f"답변 작성 시 각 항목의 [출처] 태그를 그대로 포함하세요.\n"
+        ]
+        for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
+            m = meta or {}
+            hanja       = m.get("hanja", "")
+            hangul      = m.get("hangul", "")
+            strokes     = m.get("strokes", "?")
+            res_ohaeng  = m.get("resource_ohaeng", "?")
+            snd_ohaeng  = m.get("sound_ohaeng", "?")
+            meaning     = m.get("sound_meaning", "")
+            is_person   = "예" if m.get("is_person_name_hanja") else "아니오"
+            lines.append(
+                f"[{i}] {hanja}({hangul}) | 획수: {strokes}획 | "
+                f"자원오행: {res_ohaeng} | 발음오행: {snd_ohaeng} | "
+                f"뜻: {meaning} | 인명용: {is_person}\n"
+                f"    [출처: hanja_col / 자원오행표 / {res_ohaeng}오행]"
+            )
+    else:
+        lines = [f"[{collection}] '{query}' 검색 결과 {len(documents)}건\n"]
+        for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
+            similarity = round(1 - dist, 4)
+            meta_str = " | ".join(
+                f"{k}: {v}" for k, v in (meta or {}).items()
+                if k not in {"type", "collection", "source"}
+            )
+            lines.append(
+                f"  [{i}] 유사도: {similarity}\n"
+                f"      메타: {meta_str}\n"
+                f"      내용: {doc[:200]}{'...' if len(doc) > 200 else ''}\n"
+                f"      [출처: {collection}]"
+            )
 
     return "\n".join(lines)
 

@@ -400,6 +400,17 @@ MERGE (sound_cat:Category:Ohaeng {dataset: row.dataset, name: row.sound_ohaeng})
 MERGE (resource_cat:Category:Ohaeng {dataset: row.dataset, name: row.resource_ohaeng})
 MERGE (h)-[:HAS_SOUND]->(sound)
 MERGE (h)-[:HAS_STROKES]->(stroke)
+WITH h, row, sound_cat, resource_cat
+OPTIONAL MATCH (h)-[old_sound_rel:BELONGS_TO {kind: 'sound_ohaeng'}]->(old_sound_cat:Category:Ohaeng {dataset: row.dataset})
+WHERE old_sound_cat.name <> row.sound_ohaeng
+WITH h, row, sound_cat, resource_cat, collect(old_sound_rel) AS old_sound_rels
+FOREACH (rel IN old_sound_rels | DELETE rel)
+WITH h, row, sound_cat, resource_cat
+OPTIONAL MATCH (h)-[old_resource_rel:BELONGS_TO {kind: 'resource_ohaeng'}]->(old_resource_cat:Category:Ohaeng {dataset: row.dataset})
+WHERE old_resource_cat.name <> row.resource_ohaeng
+WITH h, row, sound_cat, resource_cat, collect(old_resource_rel) AS old_resource_rels
+FOREACH (rel IN old_resource_rels | DELETE rel)
+WITH h, row, sound_cat, resource_cat
 MERGE (h)-[sound_rel:BELONGS_TO {kind: 'sound_ohaeng'}]->(sound_cat)
 SET sound_rel.source_field = 'sound_ohaeng',
     sound_rel.updated_by = 'src/graph/index_hanja_neo4j.py'

@@ -26,3 +26,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# OCR 실행 로그 / 진행 상태 (로컬 전용)
+data/processed/ocr/ocr_log.txt
+data/processed/ocr/ocr_progress.json

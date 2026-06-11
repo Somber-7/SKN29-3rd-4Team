@@ -13123,7 +13123,7 @@
   },
   {
     "id": "hanja_OHE-00730",
-    "document": "한자 牧(목)은 뜻이 '칠'인 인명용 한자이다. 유니코드는 U+7267, 획수는 8획, 발음오행은 수, 자원오행은 모이다.",
+    "document": "한자 牧(목)은 뜻이 '칠'인 인명용 한자이다. 유니코드는 U+7267, 획수는 8획, 발음오행은 수, 자원오행은 목이다.",
     "metadata": {
       "type": "hanja",
       "collection": "hanja_profiles",
@@ -13135,7 +13135,7 @@
       "sound_meaning": "칠",
       "strokes": 8,
       "sound_ohaeng": "수",
-      "resource_ohaeng": "모",
+      "resource_ohaeng": "목",
       "is_person_name_hanja": true
     }
   },
@@ -13285,7 +13285,7 @@
   },
   {
     "id": "hanja_OHE-00739",
-    "document": "한자 錨(묘)은 뜻이 '닻'인 인명용 한자이다. 유니코드는 U+9328, 획수는 17획, 발음오행은 수, 자원오행은 슴이다.",
+    "document": "한자 錨(묘)은 뜻이 '닻'인 인명용 한자이다. 유니코드는 U+9328, 획수는 17획, 발음오행은 수, 자원오행은 금이다.",
     "metadata": {
       "type": "hanja",
       "collection": "hanja_profiles",
@@ -13297,7 +13297,7 @@
       "sound_meaning": "닻",
       "strokes": 17,
       "sound_ohaeng": "수",
-      "resource_ohaeng": "슴",
+      "resource_ohaeng": "수",
       "is_person_name_hanja": true
     }
   },
@@ -28747,7 +28747,7 @@
   },
   {
     "id": "hanja_OHE-01598",
-    "document": "한자 逸(일)은 뜻이 '달아날 뛰어날'인 인명용 한자이다. 유니코드는 U+9038, 획수는 15획, 발음오행은 토, 자원오행은 모이다.",
+    "document": "한자 逸(일)은 뜻이 '달아날 뛰어날'인 인명용 한자이다. 유니코드는 U+9038, 획수는 15획, 발음오행은 토, 자원오행은 목이다.",
     "metadata": {
       "type": "hanja",
       "collection": "hanja_profiles",
@@ -28759,7 +28759,7 @@
       "sound_meaning": "달아날 뛰어날",
       "strokes": 15,
       "sound_ohaeng": "토",
-      "resource_ohaeng": "모",
+      "resource_ohaeng": "목",
       "is_person_name_hanja": true
     }
   },

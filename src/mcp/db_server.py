@@ -5,13 +5,16 @@ db_server.py — 수리/오행 연산 MCP 서버
 데이터: data/raw/reference/81suri.json, yinyang.json
 
 [Tool 목록]
-  1. calculate_name_suri  — 이름 획수로 81수리 4격 계산
-  2. find_lucky_strokes   — 성씨 획수에 맞는 吉수 조합 역산
-  3. lookup_ohaeng_combo  — 오행 3요소 조합의 운세 조회
+  1. get_surname_strokes  — 성씨 획수 반환
+  2. calculate_name_suri  — 이름 획수로 81수리 4격 계산
+  3. find_lucky_strokes   — 성씨 획수에 맞는 吉수 조합 역산
+  4. lookup_ohaeng_combo  — 오행 3요소 조합의 운세 조회
+  5. search_name_stats    — 이름 빈도 통계 조회
 """
 
 import os
 import json
+import functools
 import pandas as pd
 from fastmcp import FastMCP
 
@@ -23,14 +26,12 @@ mcp = FastMCP("DBServer")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "..", "..", "data", "raw", "reference")
 
-
 def _load_json_with_comments(filepath: str):
     """JSON 파일 로드 (// 주석 라인 자동 제거)"""
     with open(filepath, "r", encoding="utf-8") as f:
         lines = f.readlines()
     cleaned = "".join(line for line in lines if not line.strip().startswith("//"))
     return json.loads(cleaned)
-
 
 def _load_suri_data() -> dict:
     """81suri.json → {숫자: {gyeok, fortune, gilhyung, description}}"""
@@ -46,7 +47,6 @@ def _load_suri_data() -> dict:
         }
     return suri_dict
 
-
 def _load_yinyang_data() -> dict:
     """yinyang.json → {"木木木": "설명..."}"""
     raw = _load_json_with_comments(os.path.join(DATA_DIR, "yinyang.json"))
@@ -57,10 +57,28 @@ def _load_yinyang_data() -> dict:
             data[combo] = item[1]
     return data
 
-
 # 서버 시작 시 데이터 메모리에 로드 (82건 + 125건, 경량)
 SURI_DATA = _load_suri_data()
 YINYANG_DATA = _load_yinyang_data()
+
+# ─────────────────────────────────────────────
+# 예외 처리 방패 (Decorator)
+# ─────────────────────────────────────────────
+def safe_json_tool(func):
+    """
+    파이썬 내부 에러(TypeError, ValueError 등)가 발생해도 서버가 뻗지 않고,
+    LLM이 이해할 수 있는 규격화된 [SYSTEM ERROR] JSON을 반환하게 덮어주는 데코레이터입니다.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"[SYSTEM ERROR] {e.__class__.__name__}: {str(e)}. ACTION REQUIRED: Check your input parameters."
+            }, ensure_ascii=False)
+    return wrapper
 
 # 吉 판정 기준
 GIL_TYPES = {"吉", "大吉", "中吉", "半吉"}
@@ -69,6 +87,13 @@ GIL_TYPES = {"吉", "大吉", "中吉", "半吉"}
 SANGSAENG = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
 SANGGEUK = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
 
+SURNAME_STROKES = {
+    "김": 8, "이": 7, "박": 6, "최": 11, "정": 19, "강": 9, "조": 14, "윤": 4, 
+    "장": 11, "임": 8, "한": 17, "오": 7, "서": 10, "신": 5, "권": 22, "황": 12, 
+    "안": 6, "송": 7, "전": 6, "홍": 10, "고": 10, "문": 4, "양": 11, "손": 10, 
+    "배": 14, "백": 5, "허": 11, "유": 9, "남": 9, "심": 8, "노": 16, "하": 9,
+    "곽": 15, "성": 7, "차": 7, "주": 6, "우": 9, "구": 8, "라": 20, "민": 13
+}
 
 def _get_suri_info(num: int) -> dict:
     """81수리 범위 보정 (81 초과 시 mod 81, 0이면 81)"""
@@ -80,41 +105,54 @@ def _get_suri_info(num: int) -> dict:
 
 
 # ═══════════════════════════════════════════════════════
+# Tool 0: 성씨 획수 조회
+# ═══════════════════════════════════════════════════════
+@mcp.tool()
+@safe_json_tool
+def get_surname_strokes(surname: str) -> str:
+    """
+    [LLM 필수 도구] 한국 성씨를 입력받아 원획법 기준 획수를 반환합니다.
+    (예: '최', '김씨', '이' -> 11, 8, 7)
+    주의: find_lucky_strokes 툴을 호출하기 전 반드시 이 툴로 성씨 획수를 구하세요.
+    """
+    clean_surname = surname.replace("씨", "").replace("가", "").strip()
+    if clean_surname not in SURNAME_STROKES:
+        return json.dumps({
+            "status": "error",
+            "message": f"[SYSTEM ERROR] Surname '{clean_surname}' not found in dictionary. ACTION REQUIRED: Provide strokes manually or default to 8."
+        }, ensure_ascii=False)
+        
+    strokes = SURNAME_STROKES[clean_surname]
+    return json.dumps({
+        "status": "success",
+        "data": {"surname": clean_surname, "surname_strokes": strokes},
+        "message": f"{clean_surname}씨는 원획법 기준 {strokes}획입니다."
+    }, ensure_ascii=False)
+
+
+# ═══════════════════════════════════════════════════════
 # Tool 1: 81수리 4격 계산
 # ═══════════════════════════════════════════════════════
 @mcp.tool()
+@safe_json_tool
 def calculate_name_suri(
     surname_strokes: int,
     first_char_strokes: int,
     second_char_strokes: int,
 ) -> str:
     """
-    성씨와 이름 각 글자의 획수를 입력받아 81수리 4격을 계산합니다.
-
-    81수리 4격:
-      - 원격(元格, 초년운) = 이름 첫째 글자 획수 + 이름 둘째 글자 획수
-      - 형격(亨格, 청년운) = 성 획수 + 이름 첫째 글자 획수
-      - 이격(利格, 중년운) = 성 획수 + 이름 둘째 글자 획수
-      - 정격(貞格, 총운)   = 전체 합 (81 초과 시 mod 81)
-
-    4격이 모두 吉이어야 좋은 이름으로 판정됩니다.
-
-    주의: 획수는 반드시 원획법(강희자전 기준)으로 계산된 값을 사용하세요.
-          필획법(일반 획수)과 다릅니다. (예: 삼수변 氵 = 필획법 3획 / 원획법 4획)
-
-    Args:
-        surname_strokes: 성씨 획수 (원획법 기준, 예: 김金=8)
-        first_char_strokes: 이름 첫째 글자 획수 (예: 준俊=10)
-        second_char_strokes: 이름 둘째 글자 획수 (예: 서瑞=14)
-
-    Returns:
-        4격 계산 결과 (각 격의 수리, 격명, 길흉, 설명 포함) + 종합 판정
+    성씨, 이름 첫째, 둘째 글자의 획수를 입력받아 81수리 4격을 계산합니다.
     """
+    if surname_strokes <= 0 or first_char_strokes <= 0 or second_char_strokes <= 0:
+        return json.dumps({
+            "status": "error",
+            "message": "[SYSTEM ERROR] Invalid strokes. ACTION REQUIRED: Ensure all stroke counts are positive integers."
+        }, ensure_ascii=False)
+
     S = surname_strokes
     A = first_char_strokes
     B = second_char_strokes
 
-    # 4격 계산
     calculations = [
         ("원격(초년운)", A + B),
         ("형격(청년운)", S + A),
@@ -125,6 +163,7 @@ def calculate_name_suri(
     results = []
     all_gil = True
     hyung_count = 0
+    data_output = {}
 
     for name, raw_value in calculations:
         info = _get_suri_info(raw_value)
@@ -133,10 +172,8 @@ def calculate_name_suri(
         gilhyung = info.get("gilhyung", "정보 없음")
         desc = info.get("description", "")
 
-        # 81 초과 보정 표시
         lookup_num = raw_value % 81 if raw_value > 81 else raw_value
-        if lookup_num == 0:
-            lookup_num = 81
+        if lookup_num == 0: lookup_num = 81
         display = f"{raw_value}수" if raw_value <= 81 else f"{raw_value}수(={lookup_num}수)"
 
         is_gil = gilhyung in GIL_TYPES
@@ -144,49 +181,42 @@ def calculate_name_suri(
             all_gil = False
             hyung_count += 1
 
+        data_output[name] = {"value": raw_value, "gilhyung": gilhyung, "is_gil": is_gil}
         results.append(
-            f"  {name}: {display} — {gyeok} / {fortune} / {gilhyung}\n"
-            f"    {desc}"
+            f"  {name}: {display} — {gyeok} / {fortune} / {gilhyung}\n    {desc}"
         )
 
-    # 종합 판정
     if all_gil:
         verdict = "[종합 판정: 吉] 4격 모두 길수입니다. 성명학적으로 좋은 이름입니다."
     else:
         verdict = f"[종합 판정: 凶] {hyung_count}개 격에 흉수가 포함되어 있습니다. 다른 획수 조합을 권장합니다."
 
-    header = (
-        f"[81수리 4격 분석]\n"
-        f"입력: 성({S}획) + 이름 첫째({A}획) + 이름 둘째({B}획)\n"
-    )
+    header = f"[81수리 4격 분석]\n입력: 성({S}획) + 이름 첫째({A}획) + 이름 둘째({B}획)\n"
+    message = header + "\n" + "\n\n".join(results) + "\n\n" + verdict
 
-    return header + "\n" + "\n\n".join(results) + "\n\n" + verdict
+    return json.dumps({
+        "status": "success",
+        "data": {"suri_4gyeok": data_output, "all_gil": all_gil},
+        "message": message
+    }, ensure_ascii=False)
 
 
 # ═══════════════════════════════════════════════════════
 # Tool 2: 吉수 획수 조합 역산
 # ═══════════════════════════════════════════════════════
 @mcp.tool()
+@safe_json_tool
 def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
     """
-    성씨 획수를 입력받아 81수리 4격이 모두 吉인 이름 획수 조합을 역산합니다.
-
-    호출 조건:
-      - 사용자가 "김씨 성에 어울리는 획수 조합 찾아줘"라고 요청한 경우
-      - 이름 추천 전, 吉수 조합을 먼저 확보하고 해당 획수의 한자를 검색할 때
-
-    호출 흐름:
-      1) find_lucky_strokes(surname_strokes=8) → 吉수 획수 조합 목록 확보
-      2) 획수 조합으로 peoplehanja.json / ChromaDB에서 해당 획수 한자 검색
-      3) 오행·뜻 등 추가 조건 필터링 후 최종 추천
-
-    Args:
-        surname_strokes: 성씨 획수 (원획법 기준, 예: 김=8)
-        max_strokes: 이름 한 글자당 최대 획수 범위 (기본값: 25)
-
-    Returns:
-        4격 모두 吉인 (첫째글자 획수, 둘째글자 획수) 조합 목록
+    성씨 획수(surname_strokes)를 입력받아 4격이 모두 吉인 이름 획수 조합을 역산합니다.
+    주의: 이 툴을 쓰기 전에 반드시 get_surname_strokes 를 통해 성씨 획수를 얻으세요.
     """
+    if surname_strokes <= 0:
+        return json.dumps({
+            "status": "error",
+            "message": "[SYSTEM ERROR] Invalid surname_strokes. ACTION REQUIRED: Use get_surname_strokes to obtain valid integer first."
+        }, ensure_ascii=False)
+
     S = surname_strokes
     lucky_combos = []
 
@@ -197,59 +227,32 @@ def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
             yi_info = _get_suri_info(S + B)
             jung_info = _get_suri_info(S + A + B)
 
-            if all(
-                info.get("gilhyung", "") in GIL_TYPES
-                for info in [won_info, hyung_info, yi_info, jung_info]
-            ):
-                won_g = won_info["gilhyung"]
-                hyung_g = hyung_info["gilhyung"]
-                yi_g = yi_info["gilhyung"]
-                jung_g = jung_info["gilhyung"]
-
+            if all(info.get("gilhyung", "") in GIL_TYPES for info in [won_info, hyung_info, yi_info, jung_info]):
+                score = sum(3 if info["gilhyung"] == "大吉" else (2 if info["gilhyung"] == "吉" else 1) for info in [won_info, hyung_info, yi_info, jung_info])
                 lucky_combos.append({
                     "a": A, "b": B,
-                    "won": A + B, "won_g": won_g,
-                    "hyung": S + A, "hyung_g": hyung_g,
-                    "yi": S + B, "yi_g": yi_g,
-                    "jung": S + A + B, "jung_g": jung_g,
+                    "won": A + B, "won_g": won_info["gilhyung"],
+                    "hyung": S + A, "hyung_g": hyung_info["gilhyung"],
+                    "yi": S + B, "yi_g": yi_info["gilhyung"],
+                    "jung": S + A + B, "jung_g": jung_info["gilhyung"],
+                    "score": score
                 })
 
     if not lucky_combos:
-        return (
-            f"[결과 없음] 성씨 {S}획에 대해 1~{max_strokes}획 범위에서 "
-            f"4격 모두 吉인 조합을 찾지 못했습니다."
-        )
+        return json.dumps({
+            "status": "success",
+            "data": {"lucky_combos": []},
+            "message": f"[결과 없음] 성씨 {S}획에 대해 4격 모두 吉인 조합을 찾지 못했습니다."
+        }, ensure_ascii=False)
 
-    # 大吉이 많은 조합 우선 정렬
-    def sort_key(c):
-        score = 0
-        for g in [c["won_g"], c["hyung_g"], c["yi_g"], c["jung_g"]]:
-            if g == "大吉":
-                score += 3
-            elif g == "吉":
-                score += 2
-            elif g == "中吉":
-                score += 1
-        return -score
-
-    lucky_combos.sort(key=sort_key)
-
+    lucky_combos.sort(key=lambda x: -x["score"])
+    
     lines = []
     for c in lucky_combos:
-        lines.append(
-            f"  ({c['a']}획, {c['b']}획) → "
-            f"원격{c['won']}({c['won_g']}) "
-            f"형격{c['hyung']}({c['hyung_g']}) "
-            f"이격{c['yi']}({c['yi_g']}) "
-            f"정격{c['jung']}({c['jung_g']})"
-        )
+        lines.append(f"  ({c['a']}획, {c['b']}획) → 원격{c['won']}({c['won_g']}) 형격{c['hyung']}({c['hyung_g']}) 이격{c['yi']}({c['yi_g']}) 정격{c['jung']}({c['jung_g']})")
 
-    header = (
-        f"[吉수 조합 역산] 성씨 {S}획 기준\n"
-        f"총 {len(lucky_combos)}개 조합 발견 (大吉 많은 순 정렬)\n"
-    )
-
-    # 30개 초과 시 상위만 표시
+    header = f"[吉수 조합 역산] 성씨 {S}획 기준\n총 {len(lucky_combos)}개 조합 발견 (大吉 많은 순 정렬)\n"
+    
     if len(lines) > 30:
         body = "\n".join(lines[:30])
         footer = f"\n\n... 외 {len(lines) - 30}개 조합 생략 (총 {len(lines)}개)"
@@ -257,88 +260,71 @@ def find_lucky_strokes(surname_strokes: int, max_strokes: int = 25) -> str:
         body = "\n".join(lines)
         footer = ""
 
-    return header + "\n" + body + footer
+    # JSON data에는 상위 10개만 리스트 형식으로 저장
+    extracted_data = [{"first_char_strokes": c["a"], "second_char_strokes": c["b"]} for c in lucky_combos[:10]]
+
+    return json.dumps({
+        "status": "success",
+        "data": {"surname_strokes": S, "recommended_combos": extracted_data},
+        "message": header + "\n" + body + footer
+    }, ensure_ascii=False)
 
 
 # ═══════════════════════════════════════════════════════
 # Tool 3: 오행 조합 운세 조회
 # ═══════════════════════════════════════════════════════
 @mcp.tool()
+@safe_json_tool
 def lookup_ohaeng_combo(element1: str, element2: str, element3: str) -> str:
     """
-    성씨·이름1·이름2의 오행 조합에 대한 운세를 조회합니다.
-
-    오행 5가지: 木(목), 火(화), 土(토), 金(금), 水(수)
-
-    호출 조건:
-      - LLM이 이름을 추천한 후 오행 조합의 운세를 확인할 때
-      - 사용자가 "이 이름의 오행 궁합이 어때?"라고 물었을 때
-      - 상생(좋은 조합)인지 상극(나쁜 조합)인지 판단이 필요할 때
-
-    오행 상생 순환: 木→火→土→金→水→木 (서로 살리는 관계)
-    오행 상극 순환: 木→土, 土→水, 水→火, 火→金, 金→木 (서로 꺾는 관계)
-
-    Args:
-        element1: 성씨의 오행 (木/火/土/金/水)
-        element2: 이름 첫째 글자의 오행 (木/火/土/金/水)
-        element3: 이름 둘째 글자의 오행 (木/火/土/金/水)
-
-    Returns:
-        오행 관계 분석 + 해당 조합의 운세 설명
+    성씨·이름1·이름2의 오행(木/火/土/金/水) 조합에 대한 운세를 조회합니다.
     """
     valid = {"木", "火", "土", "金", "水"}
-
-    # 입력값 정규화 (호환용 한자 金을 통합 한자 金으로 변경)
     element1 = element1.replace('\uf90a', '\u91d1')
     element2 = element2.replace('\uf90a', '\u91d1')
     element3 = element3.replace('\uf90a', '\u91d1')
 
-    for elem, label in [(element1, "성씨"), (element2, "이름1"), (element3, "이름2")]:
+    for elem in [element1, element2, element3]:
         if elem not in valid:
-            return (
-                f"[오류] {label}의 오행 '{elem}'이(가) 유효하지 않습니다. "
-                f"木/火/土/金/水 중 하나를 입력하세요."
-            )
+            return json.dumps({
+                "status": "error",
+                "message": f"[SYSTEM ERROR] Invalid element '{elem}'. ACTION REQUIRED: Convert to one of '木', '火', '土', '金', '水' and retry."
+            }, ensure_ascii=False)
 
     combo = element1 + element2 + element3
     desc = YINYANG_DATA.get(combo)
 
     if not desc:
-        return f"[결과 없음] '{combo}' 조합에 대한 운세 정보를 찾을 수 없습니다."
+        return json.dumps({
+            "status": "error",
+            "message": f"[SYSTEM ERROR] No data for combo '{combo}'. ACTION REQUIRED: Verify the element characters."
+        }, ensure_ascii=False)
 
-    # 상생/상극 관계 분석
     relations = []
     for a, b, label in [(element1, element2, "성→이름1"), (element2, element3, "이름1→이름2")]:
-        if SANGSAENG[a] == b:
-            relations.append(f"  {label}: {a}생{b} (상생 — 살려주는 관계)")
-        elif SANGGEUK[a] == b:
-            relations.append(f"  {label}: {a}극{b} (상극 — 꺾는 관계)")
-        elif a == b:
-            relations.append(f"  {label}: {a}={b} (비화 — 같은 오행)")
+        if SANGSAENG[a] == b: relations.append(f"  {label}: {a}생{b} (상생)")
+        elif SANGGEUK[a] == b: relations.append(f"  {label}: {a}극{b} (상극)")
+        elif a == b: relations.append(f"  {label}: {a}={b} (비화)")
         else:
-            # 역상생/역상극 체크
-            if SANGSAENG[b] == a:
-                relations.append(f"  {label}: {b}생{a} (역상생)")
-            elif SANGGEUK[b] == a:
-                relations.append(f"  {label}: {b}극{a} (역상극)")
-            else:
-                relations.append(f"  {label}: {a}→{b}")
+            if SANGSAENG[b] == a: relations.append(f"  {label}: {b}생{a} (역상생)")
+            elif SANGGEUK[b] == a: relations.append(f"  {label}: {b}극{a} (역상극)")
+            else: relations.append(f"  {label}: {a}→{b}")
 
-    # 전체 흐름 판정
     pair1_sang = SANGSAENG[element1] == element2
     pair2_sang = SANGSAENG[element2] == element3
-    if pair1_sang and pair2_sang:
-        flow = "전체 상생 흐름 — 매우 좋은 조합입니다."
-    elif pair1_sang or pair2_sang:
-        flow = "부분 상생 — 보통 수준의 조합입니다."
-    else:
-        flow = "상생 흐름이 없음 — 주의가 필요한 조합입니다."
+    if pair1_sang and pair2_sang: flow = "전체 상생 흐름 — 매우 좋은 조합입니다."
+    elif pair1_sang or pair2_sang: flow = "부분 상생 — 보통 수준의 조합입니다."
+    else: flow = "상생 흐름이 없음 — 주의가 필요한 조합입니다."
 
     header = f"[오행 조합 운세] {combo}\n\n"
     relation_text = "오행 관계:\n" + "\n".join(relations) + f"\n  흐름 판정: {flow}\n\n"
     body = f"운세 풀이:\n  {desc}"
 
-    return header + relation_text + body
+    return json.dumps({
+        "status": "success",
+        "data": {"ohaeng_combo": combo, "flow": flow},
+        "message": header + relation_text + body
+    }, ensure_ascii=False)
 
 
 # ═══════════════════════════════════════════════════════
@@ -347,125 +333,48 @@ def lookup_ohaeng_combo(element1: str, element2: str, element3: str) -> str:
 _NAME_STATS_PATH = os.path.join(DATA_DIR, "2016_2026상위_출생신고_이름_현황.xls")
 _name_stats_cache: pd.DataFrame | None = None
 
-
 def _load_name_stats() -> pd.DataFrame:
     global _name_stats_cache
     if _name_stats_cache is None:
         _name_stats_cache = pd.read_excel(_NAME_STATS_PATH, header=0)
     return _name_stats_cache
 
-
 @mcp.tool()
+@safe_json_tool
 def search_name_stats(name: str) -> str:
     """
-    2016~2026년 출생신고 이름 현황에서 특정 이름의 빈도 통계를 조회합니다.
-
-    호출 조건:
-      - 추천 이름이 실제로 많이 쓰이는 이름인지 확인할 때
-      - 사용자가 "이 이름이 흔한 편인가요?"라고 물었을 때
-
-    Args:
-        name: 조회할 이름 (예: "서연", "민준")
-
-    Returns:
-        해당 이름의 순위, 비율, 건수 정보
+    2016~2026년 출생신고 상위 이름 현황에서 특정 이름의 빈도/순위를 조회합니다.
     """
     try:
         df = _load_name_stats()
-    except FileNotFoundError:
-        return f"[오류] 이름 통계 파일을 찾을 수 없습니다: {_NAME_STATS_PATH}"
     except Exception as e:
-        return f"[오류] 파일 로드 실패: {str(e)}"
+        return json.dumps({
+            "status": "error",
+            "message": f"[SYSTEM ERROR] File load failed: {str(e)}"
+        }, ensure_ascii=False)
 
-    # 이름 컬럼 자동 탐색 (컬럼명이 다를 수 있음)
-    # 이름 컬럼은 통상적으로 2번째 열(인덱스 1)에 위치함 (첫 행이 병합된 제목인 경우 대비)
     name_col = df.columns[1]
-
-    # contains()를 쓰면 "현" 검색 시 "지현, 서현"이 모두 나오므로 정확히 일치(==) 조건으로 변경
     matched = df[df[name_col].astype(str).str.strip() == name.strip()]
 
     if matched.empty:
-        return (
-            f"[결과 없음] '{name}'은(는) 2016~2026년 출생신고 상위 이름 목록에 없습니다.\n"
-            f"흔하지 않은 이름이거나 독특한 이름일 가능성이 높습니다."
-        )
+        return json.dumps({
+            "status": "success",
+            "data": {"name": name, "found": False},
+            "message": f"[결과 없음] '{name}'은(는) 상위 이름 목록에 없습니다."
+        }, ensure_ascii=False)
 
+    stats_list = []
     lines = [f"[이름 빈도 통계] '{name}' 검색 결과\n"]
     for _, row in matched.iterrows():
+        stats_list.append({str(k): str(v) for k, v in row.items() if pd.notna(v)})
         lines.append("  " + " / ".join(f"{col}: {val}" for col, val in row.items() if pd.notna(val)))
 
-    return "\n".join(lines)
+    return json.dumps({
+        "status": "success",
+        "data": {"name": name, "found": True, "stats": stats_list},
+        "message": "\n".join(lines)
+    }, ensure_ascii=False)
 
-
-# ─────────────────────────────────────────────
-# 서버 실행
-# ─────────────────────────────────────────────
-SURNAME_STROKES = {
-    "김": 8, "이": 7, "박": 6, "최": 11, "정": 19, "강": 9, "조": 14, "윤": 4, 
-    "장": 11, "임": 8, "한": 17, "오": 7, "서": 10, "신": 5, "권": 22, "황": 12, 
-    "안": 6, "송": 7, "전": 6, "홍": 10, "고": 10, "문": 4, "양": 11, "손": 10, 
-    "배": 14, "백": 5, "허": 11, "유": 9, "남": 9, "심": 8, "노": 16, "하": 9,
-    "곽": 15, "성": 7, "차": 7, "주": 6, "우": 9, "구": 8, "라": 20, "민": 13
-}
-
-@mcp.tool()
-def process_sql_query(query: str) -> str:
-    """
-    사용자의 자연어 질문을 분석하여(정규식 등) 적절한 
-    통계, 오행, 획수, 4격 연산 등의 결과를 종합하여 반환합니다.
-    """
-    import re
-    context_parts = []
-
-    # 1. 빈도 통계 시나리오
-    if any(kw in query for kw in {"통계", "순위", "빈도", "흔한", "얼마나"}):
-        words = re.findall(r"['\"]([가-힣]{2,3})['\"]", query)
-        if not words:
-            words = re.findall(r"([가-힣]{2,3})(?:이라는\b|라는\b)", query)
-        if not words:
-            words = re.findall(r"([가-힣]{2,3})(?:이\b|가\b|은\b|는\b)", query)
-        name_to_search = words[0] if words else re.sub(r"[^\w\s]", "", query)[:2]
-        
-        if len(name_to_search) >= 2:
-            context_parts.append(search_name_stats(name_to_search))
-
-    # 2. 오행 궁합 시나리오
-    elif any(kw in query for kw in {"오행 조합", "오행 궁합", "오행의"}):
-        ohaeng_str = query.replace("목", "木").replace("화", "火").replace("토", "土").replace("금", "金").replace("수", "水")
-        ohaeng = re.findall(r"[木火土金水]", ohaeng_str)
-        if len(ohaeng) >= 3:
-            context_parts.append(lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2]))
-        else:
-            context_parts.append("[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요.")
-
-    # 3. 획수 역산 시나리오
-    elif any(kw in query for kw in {"어울리는 획수", "조합", "역산", "吉수"}):
-        surname = "김"
-        for s in SURNAME_STROKES.keys():
-            if re.search(rf"(?:{s}씨|{s}가|성은\s*{s}|{s}\s*성)", query):
-                surname = s
-                break
-        surname_strokes = SURNAME_STROKES.get(surname, 8)
-        context_parts.append(find_lucky_strokes(surname_strokes))
-
-    # 4. 4격 연산 직접 입력 시나리오
-    else:
-        nums = list(map(int, re.findall(r"\d+", query)))
-        if len(nums) >= 3:
-            context_parts.append(calculate_name_suri(nums[0], nums[1], nums[2]))
-        elif len(nums) == 2:
-            surname = "김"
-            for s in SURNAME_STROKES.keys():
-                if re.search(rf"(?:{s}씨|{s}가|성은\s*{s}|{s}\s*성)", query):
-                    surname = s
-                    break
-            surname_strokes = SURNAME_STROKES.get(surname, 8)
-            context_parts.append(calculate_name_suri(surname_strokes, nums[0], nums[1]))
-
-    if not context_parts:
-        context_parts.append("[안내] 수리/획수/통계 분석을 위한 조건(성씨 획수, 오행 등)을 파악하지 못했습니다.")
-
-    return "\n\n".join(context_parts)
 
 if __name__ == "__main__":
     mcp.run()

@@ -178,7 +178,7 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "suri_col"))
     if any(kw in query for kw in {"오행", "상생", "상극", "木", "火", "土", "金", "水"}):
         results.append(rag_server.search_rag(query, "ohaeng_col"))
-    if any(kw in query for kw in {"한자", "획수", "음", "독음"}) or (
+    if any(kw in query for kw in {"한자", "획수", "독음"}) or (
         "추천" in query and "이름" not in query and "순우리말" not in query
     ):
         results.append(rag_server.search_rag(query, "hanja_col"))

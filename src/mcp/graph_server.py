@@ -17,6 +17,7 @@ src/graph/index_hanja_neo4j.py.
   3. check_person_name_hanja     - Person-name Hanja permission check
   4. get_ohaeng_relations        - Ohaeng generates/controls traversal
   5. recommend_hanja_by_ohaeng   - Hanja filtering by ohaeng/strokes/sound/meaning
+  6. answer_graph_query          - Natural-language router for graph queries
 
 Importing this module does not connect to Neo4j. Connections are opened only
 inside tool calls, so local syntax/self checks can run before server access.
@@ -28,6 +29,7 @@ import argparse
 import ast
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -159,6 +161,157 @@ def _format_neo4j_error(error: Exception) -> str:
         f"[오류] Neo4j 조회 실패: {type(error).__name__}: {error}\n"
         "확인할 것: Docker Neo4j 실행 여부, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE"
     )
+
+
+def _extract_profile_id(query: str) -> str | None:
+    match = re.search(r"\bOHE-\d{5}\b", query, flags=re.IGNORECASE)
+    return match.group(0).upper() if match else None
+
+
+def _extract_hanja_chars(query: str) -> list[str]:
+    chars = re.findall(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]", query)
+    return [char.replace("金", "金") for char in chars]
+
+
+def _extract_ohaeng(query: str) -> str | None:
+    for value in OHAENG_KO:
+        if value in query:
+            return value
+    for value in OHAENG_HANJA_TO_KO:
+        if value in query:
+            return OHAENG_HANJA_TO_KO[value]
+    return None
+
+
+def _extract_strokes(query: str) -> int | None:
+    match = re.search(r"(\d{1,2})\s*획", query)
+    return int(match.group(1)) if match else None
+
+
+def _extract_hangul_sound(query: str) -> str | None:
+    cleaned_query = query.replace("발음오행", " ").replace("자원오행", " ").replace("오행", " ")
+    patterns = [
+        r"(?:음|독음|발음|한글\s*음)\s*(?:은|는|이|가|:)?\s*([가-힣])",
+        r"([가-힣])\s*(?:음|독음)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, cleaned_query)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _normalize_meaning_keyword(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = value.strip(" '\"“”‘’.,")
+    for suffix in ["스러운", "로운", "하는", "하다", "한", "은", "는", "인", "의"]:
+        if len(value) > len(suffix) and value.endswith(suffix):
+            value = value[: -len(suffix)]
+            break
+    return value or None
+
+
+def _extract_meaning_keyword(query: str) -> str | None:
+    patterns = [
+        r"([가-힣]{1,8})\s*(?:뜻|의미)",
+        r"(?:뜻|의미)\s*(?:이|가|은|는|으로|와|과|:)?\s*['\"“”‘’]?([가-힣]{1,8})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, query)
+        if match:
+            keyword = _normalize_meaning_keyword(match.group(1))
+            if keyword:
+                return keyword
+
+    for keyword in ["밝", "지혜", "슬기", "맑", "복", "귀", "강", "아름", "평안", "총명", "빛"]:
+        if keyword in query:
+            return keyword
+    return None
+
+
+def _classify_graph_query(query: str, limit: int = 10) -> dict[str, Any]:
+    normalized_query = str(query or "").strip()
+    profile_id = _extract_profile_id(normalized_query)
+    hanja_chars = _extract_hanja_chars(normalized_query)
+    ohaeng = _extract_ohaeng(normalized_query)
+    strokes = _extract_strokes(normalized_query)
+    hangul = _extract_hangul_sound(normalized_query)
+    meaning_keyword = _extract_meaning_keyword(normalized_query)
+
+    status_keywords = {"상태", "현황", "카운트", "건수", "count", "검증", "적재"}
+    permission_keywords = {"인명용", "허용", "출생신고", "등록", "가능한", "가능해", "쓸 수"}
+    relation_keywords = {"상생", "상극", "관계", "생", "극"}
+    recommend_keywords = {"추천", "찾", "골라", "후보", "조건", "뜻", "의미", "획", "오행"}
+
+    if any(keyword in normalized_query for keyword in status_keywords) and not hanja_chars and not profile_id:
+        return {"tool": "check_graph_status", "params": {}, "reason": "Neo4j 그래프 적재 상태 확인"}
+
+    if any(keyword in normalized_query for keyword in permission_keywords):
+        if hanja_chars:
+            return {
+                "tool": "check_person_name_hanja",
+                "params": {"hanja": hanja_chars[0]},
+                "reason": "인명용 한자 허용 여부 확인",
+            }
+        return {
+            "tool": "needs_hanja_for_permission",
+            "params": {},
+            "reason": "인명용 한자 검증에는 한자 문자가 필요함",
+        }
+
+    if ohaeng and any(keyword in normalized_query for keyword in relation_keywords) and "추천" not in normalized_query:
+        return {
+            "tool": "get_ohaeng_relations",
+            "params": {"element": ohaeng},
+            "reason": "오행 상생/상극 관계 조회",
+        }
+
+    if (
+        any(keyword in normalized_query for keyword in recommend_keywords)
+        and (ohaeng or strokes or hangul or meaning_keyword)
+    ):
+        sound_ohaeng = ohaeng if "발음" in normalized_query else None
+        resource_ohaeng = ohaeng if sound_ohaeng is None else None
+        return {
+            "tool": "recommend_hanja_by_ohaeng",
+            "params": {
+                "sound_ohaeng": sound_ohaeng,
+                "resource_ohaeng": resource_ohaeng,
+                "hangul": hangul,
+                "meaning_keyword": meaning_keyword,
+                "strokes": strokes,
+                "limit": limit,
+            },
+            "reason": "오행/뜻/획수/음 조건 기반 한자 추천",
+        }
+
+    if profile_id:
+        return {
+            "tool": "lookup_hanja",
+            "params": {"profile_id": profile_id, "limit": limit},
+            "reason": "profile_id 기준 한자 조회",
+        }
+
+    if hanja_chars:
+        return {
+            "tool": "lookup_hanja",
+            "params": {"hanja": hanja_chars[0], "limit": limit},
+            "reason": "한자 문자 기준 조회",
+        }
+
+    if hangul:
+        return {
+            "tool": "lookup_hanja",
+            "params": {"hangul": hangul, "limit": limit},
+            "reason": "한글 음 기준 한자 조회",
+        }
+
+    return {
+        "tool": "unsupported",
+        "params": {},
+        "reason": "Neo4j 그래프 질문 유형을 특정하지 못함",
+    }
 
 
 # 3. Tool: graph status
@@ -488,6 +641,55 @@ def recommend_hanja_by_ohaeng(
     return f"[조건 기반 한자 추천] {' / '.join(conditions)}\n" + _format_hanja_rows(rows)
 
 
+@mcp.tool()
+def answer_graph_query(query: str, limit: int = 10) -> str:
+    """
+    자연어 그래프 질문을 받아 적절한 Neo4j 조회 Tool로 분기합니다.
+
+    이 함수는 LangGraph의 graph_db_node나 Web AI Chat 서버가 graph_server.py의
+    세부 Tool 이름을 몰라도 하나의 진입점으로 사용할 수 있게 만든 얇은 라우터입니다.
+
+    Args:
+        query: 사용자의 자연어 질문.
+        limit: 추천/조회 최대 반환 건수. 기본 10, 최대 30.
+
+    Returns:
+        분기된 Neo4j 조회 결과 또는 추가 입력 안내.
+    """
+    query = str(query or "").strip()
+    if not query:
+        return "[오류] graph query가 비어 있습니다."
+
+    limit = _safe_limit(limit)
+    route = _classify_graph_query(query, limit=limit)
+    tool = route["tool"]
+    params = route["params"]
+    header = f"[graph_server 라우팅]\n선택 Tool: {tool}\n이유: {route['reason']}\n\n"
+
+    if tool == "check_graph_status":
+        return header + check_graph_status()
+    if tool == "lookup_hanja":
+        return header + lookup_hanja(**params)
+    if tool == "check_person_name_hanja":
+        return header + check_person_name_hanja(**params)
+    if tool == "get_ohaeng_relations":
+        return header + get_ohaeng_relations(**params)
+    if tool == "recommend_hanja_by_ohaeng":
+        return header + recommend_hanja_by_ohaeng(**params)
+    if tool == "needs_hanja_for_permission":
+        return (
+            header
+            + "[안내] Neo4j 인명용 한자 검증은 한자 문자가 필요합니다.\n"
+            + "예: '牧 한자는 인명용으로 허용되나요?'처럼 한자를 포함해 질문해주세요."
+        )
+
+    return (
+        header
+        + "[안내] graph_server가 처리할 수 있는 질문 유형은 한자 조회, 인명용 한자 검증, "
+        + "오행 상생/상극 조회, 오행/뜻/획수 조건 기반 한자 추천입니다."
+    )
+
+
 # 6. Local self-check without Neo4j connection
 # This is used before touching the actual server.
 def _read_source_records() -> list[dict[str, Any]]:
@@ -563,10 +765,26 @@ def run_self_check() -> int:
         "has_permission_tool": "def check_person_name_hanja" in source_text,
         "has_ohaeng_tool": "def get_ohaeng_relations" in source_text,
         "has_recommend_tool": "def recommend_hanja_by_ohaeng" in source_text,
+        "has_answer_graph_query_tool": "def answer_graph_query" in source_text,
     }
     for name, ok in checks.items():
         if not ok:
             issues.append(f"self-check failed: {name}")
+
+    route_samples = [
+        ("Neo4j 상태 확인해줘", "check_graph_status"),
+        ("OHE-00730 한자 조회해줘", "lookup_hanja"),
+        ("牧 한자는 인명용으로 허용되나요?", "check_person_name_hanja"),
+        ("목 오행 상생 상극 관계 알려줘", "get_ohaeng_relations"),
+        ("목 오행이고 밝은 뜻 한자 추천해줘", "recommend_hanja_by_ohaeng"),
+    ]
+    route_results = []
+    for sample, expected_tool in route_samples:
+        actual_tool = _classify_graph_query(sample)["tool"]
+        ok = actual_tool == expected_tool
+        route_results.append((sample, expected_tool, actual_tool, ok))
+        if not ok:
+            issues.append(f"route sample failed: {sample} expected={expected_tool} actual={actual_tool}")
 
     counts = _build_expected_counts(records) if records else {}
     print("[graph_server.py self-check]")
@@ -579,6 +797,9 @@ def run_self_check() -> int:
     print("tool_structure:")
     for name, ok in checks.items():
         print(f"  - {name}: {'OK' if ok else 'FAILED'}")
+    print("route_samples:")
+    for sample, expected_tool, actual_tool, ok in route_results:
+        print(f"  - {sample} -> {actual_tool}: {'OK' if ok else f'FAILED expected {expected_tool}'}")
 
     if issues:
         print("\nissues:")

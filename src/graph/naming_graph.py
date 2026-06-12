@@ -65,7 +65,7 @@ class NamingState(TypedDict):
 # ─────────────────────────────────────────────
 
 _llm = ChatOllama(
-    model="qwen3:4b",
+    model="qwen3.5:4b",
     num_ctx=32768,
     temperature=0.3,
 )
@@ -171,6 +171,8 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "law_col"))
     if any(kw in query for kw in {"순우리말", "우리말", "이름 뜻", "이름 추천"}):
         results.append(rag_server.search_rag(query, "urimalsam_col"))
+    if any(kw in query for kw in {"트렌드", "유행", "최근 이름", "요즘 이름", "현대적", "세련"}):
+        results.append(rag_server.search_rag(query, "trend_col"))
     if not results:
         results.append(rag_server.search_rag(query, "hanja_col"))
 
@@ -191,22 +193,34 @@ def sql_db_node(state: NamingState) -> NamingState:
     """81수리 4격 계산 또는 吉수 조합 역산을 수행합니다."""
     query = state["query"]
 
-    if any(kw in query for kw in {"어울리는 획수", "吉수", "획수 조합", "역산"}):
-        nums = re.findall(r"\d+", query)
-        surname_strokes = int(nums[0]) if nums else 8
-        result = db_server.find_lucky_strokes(surname_strokes)
+    # 한자/괄호 뒤 숫자가 아닌, 단독 숫자만 추출 (예: "8획", "획수 8", "8")
+    nums = re.findall(r"(?<!\()\b(\d+)\b(?!\s*[a-zA-Z가-힣]획?[^수])", query)
+    nums = re.findall(r"\b\d+\b", query)  # 단순 숫자 전체 추출
+
+    if any(kw in query for kw in {"어울리는 획수", "吉수", "획수 조합", "역산", "길한 획수"}):
+        if nums:
+            result = db_server.find_lucky_strokes(int(nums[0]))
+        else:
+            result = "[안내] 성씨 획수를 입력해주세요. 예: '김씨(8획)에 어울리는 吉수 조합'"
+
     elif any(kw in query for kw in {"오행 조합", "오행 궁합"}):
         ohaeng = re.findall(r"[木火土金水]", query)
         if len(ohaeng) >= 3:
             result = db_server.lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2])
         else:
             result = "[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요."
+
+    elif len(nums) >= 3:
+        result = db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2]))
+
+    elif nums:
+        result = (
+            f"[안내] 성씨 획수 {nums[0]}획 기준으로 吉수 조합을 역산합니다.\n"
+            + db_server.find_lucky_strokes(int(nums[0]))
+        )
+
     else:
-        nums = re.findall(r"\d+", query)
-        if len(nums) >= 3:
-            result = db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2]))
-        else:
-            result = db_server.find_lucky_strokes(int(nums[0]) if nums else 8)
+        result = "[안내] 수리 계산을 위해 획수 정보가 필요합니다. 성씨와 이름 각 글자의 획수를 입력해주세요."
 
     new_context = state["context"] + "\n\n[sql_db 결과]\n" + result
     return {**state, "context": new_context, "next_action": "generate",

@@ -53,7 +53,7 @@ def _load_yinyang_data() -> dict:
     data = {}
     for item in raw:
         if len(item) >= 2:
-            combo = item[0].replace('\uf90a', '\u91d1')
+            combo = item[0]
             data[combo] = item[1]
     return data
 
@@ -280,9 +280,6 @@ def lookup_ohaeng_combo(element1: str, element2: str, element3: str) -> str:
     성씨·이름1·이름2의 오행(木/火/土/金/水) 조합에 대한 운세를 조회합니다.
     """
     valid = {"木", "火", "土", "金", "水"}
-    element1 = element1.replace('\uf90a', '\u91d1')
-    element2 = element2.replace('\uf90a', '\u91d1')
-    element3 = element3.replace('\uf90a', '\u91d1')
 
     for elem in [element1, element2, element3]:
         if elem not in valid:

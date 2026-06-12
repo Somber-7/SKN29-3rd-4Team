@@ -1,0 +1,19 @@
+services:
+  pipelines:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pipelines
+    container_name: naming-pipelines
+    ports:
+      - "9099:9099"
+    volumes:
+      - ./pipelines:/app/pipelines
+      - ./src:/app/src_naming
+      - ./data:/app/data
+      - hf-cache:/root/.cache/huggingface
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  hf-cache:

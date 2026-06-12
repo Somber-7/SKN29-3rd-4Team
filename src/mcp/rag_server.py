@@ -19,6 +19,8 @@ rag_server.py — ChromaDB 벡터 검색 MCP 서버 (internal_rag 노드)
 
 import os
 import re
+import random
+import functools
 import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from fastmcp import FastMCP
@@ -39,7 +41,7 @@ _embedding_fn = SentenceTransformerEmbeddingFunction(
 )
 
 # 사용 가능한 컬렉션 목록 (인덱싱 완료된 것만 추가)
-_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "trend_col", "paper_col"]
+_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "paper_col"]
 
 
 def _get_collection(name: str):
@@ -103,6 +105,71 @@ def _parse_paper_conditions(query: str) -> tuple[dict | None, str]:
 
 
 # ═══════════════════════════════════════════════════════
+# 인명용 한자 캐시 (서버 시작 시 1회 로드, 이후 메모리에서 즉시 반환)
+# ═══════════════════════════════════════════════════════
+
+_HANJA_TO_OHAENG_KR = {"木": "목", "火": "화", "土": "토", "金": "금", "水": "수"}
+
+@functools.lru_cache(maxsize=1)
+def _load_person_name_hanja() -> list:
+    """is_person_name_hanja=True 한자 전체를 메모리에 캐싱합니다."""
+    col = _get_collection("hanja_col")
+    if col is None:
+        return []
+    results = col.get(
+        where={"is_person_name_hanja": True},
+        include=["metadatas", "documents"],
+    )
+    return list(zip(results["documents"], results["metadatas"]))
+
+
+def sample_hanja(query: str, n_results: int = 20) -> str:
+    """인명용 한자를 메모리 캐시에서 무작위 샘플링합니다.
+
+    이름 추천 전용. 시맨틱 검색 대신 메타데이터 필터 + 랜덤 샘플을 사용해
+    매 요청마다 다양한 한자 풀을 제공합니다.
+    쿼리에 오행(木/火/土/金/水)이 명시된 경우 해당 자원오행으로 필터링합니다.
+    """
+    all_hanja = _load_person_name_hanja()
+
+    ohaeng = None
+    ohaeng_match = re.search(r'([木火土金水목화토금수])오행', query)
+    if ohaeng_match:
+        raw = ohaeng_match.group(1)
+        ohaeng = _HANJA_TO_OHAENG_KR.get(raw, raw)
+
+    if ohaeng:
+        pool = [(doc, meta) for doc, meta in all_hanja
+                if (meta or {}).get("resource_ohaeng") == ohaeng]
+        filter_info = f" [자원오행 필터: {ohaeng}]"
+    else:
+        pool = all_hanja
+        filter_info = ""
+
+    if not pool:
+        return f"[결과 없음] '{ohaeng}' 오행 인명용 한자가 없습니다."
+
+    sampled = random.sample(pool, min(n_results, len(pool)))
+
+    lines = [
+        f"[인명용 한자 풀] {len(sampled)}건 샘플"
+        f" (전체 {len(pool)}건 중 무작위){filter_info}\n"
+        f"답변 작성 시 아래 목록의 한자만 사용하세요. 목록에 없는 한자 사용 금지.\n"
+    ]
+    for i, (_, meta) in enumerate(sampled, 1):
+        m = meta or {}
+        lines.append(
+            f"[{i}] {m.get('hanja','')}({m.get('hangul','')}) | "
+            f"획수: {m.get('strokes','?')}획 | "
+            f"자원오행: {m.get('resource_ohaeng','?')} | "
+            f"발음오행: {m.get('sound_ohaeng','?')} | "
+            f"뜻: {m.get('sound_meaning','')}\n"
+            f"    [한자: 자원오행표 {m.get('resource_ohaeng','?')}오행]"
+        )
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════
 # Tool 1: 의미 검색
 # ═══════════════════════════════════════════════════════
 
@@ -121,7 +188,7 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
       - hanja_col     : 한자 뜻, 획수, 음(독음), 추천 관련 질문
       - law_col       : 법령, 인명용 한자, 출생신고, 작명 규정 관련 질문
       - urimalsam_col : 순우리말 이름, 이름 뜻, 성별 경향, 최근 추세 관련 질문
-      - paper_col     : 작명 관련 학술 논문, 이름 트렌드 연구, 명명 패턴 통계 관련 질문
+      - paper_col     : 작명 관련 학술 논문, 이름 트렌드/유행 연구, 명명 패턴 통계 관련 질문
                         쿼리에 "표"/"통계"/"순위" 포함 시 → 통계표 청크 우선 검색
 
     Args:
@@ -138,7 +205,7 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
             f"사용 가능: {', '.join(_COLLECTIONS)}"
         )
 
-    n_results = min(n_results, 10)
+    n_results = min(n_results, 30)
 
     col = _get_collection(collection)
     if col is None:

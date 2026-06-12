@@ -32,4 +32,4 @@ data/processed/ocr/ocr_log.txt
 data/processed/ocr/ocr_progress.json
 
 # ChromaDB (최종 인덱싱 완료 후 배포)
-# data/chroma/
+data/chroma/

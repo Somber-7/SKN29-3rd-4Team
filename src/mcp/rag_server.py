@@ -43,8 +43,13 @@ _COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col
 
 
 def _get_collection(name: str):
-    """컬렉션을 가져옵니다. 없으면 None 반환."""
+    """컬렉션을 가져옵니다. 없으면 None 반환.
+
+    paper_col은 수동 임베딩으로 인덱싱되어 EF 없이 가져옵니다.
+    """
     try:
+        if name == "paper_col":
+            return _client.get_collection(name=name)
         return _client.get_collection(name=name, embedding_function=_embedding_fn)
     except Exception:
         return None
@@ -151,11 +156,20 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
         where, cond_desc = None, ""
 
     try:
-        results = col.query(
-            query_texts=[query],
-            n_results=n_results,
-            **({"where": where} if where else {}),
-        )
+        # paper_col은 수동 임베딩으로 인덱싱 → 쿼리도 동일 모델로 수동 임베딩
+        if collection == "paper_col":
+            query_embedding = _embedding_fn([query])
+            results = col.query(
+                query_embeddings=query_embedding,
+                n_results=n_results,
+                **({"where": where} if where else {}),
+            )
+        else:
+            results = col.query(
+                query_texts=[query],
+                n_results=n_results,
+                **({"where": where} if where else {}),
+            )
     except Exception as e:
         return f"[오류] 검색 중 오류 발생: {str(e)}"
 

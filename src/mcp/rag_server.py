@@ -65,9 +65,11 @@ def _parse_hanja_conditions(query: str) -> tuple[dict | None, str]:
         conditions.append({"strokes": n})
         desc_parts.append(f"획수 {n}획")
 
-    ohaeng_match = re.search(r'(목|화|토|금|수)오행', query)
+    _HANJA_TO_OHAENG = {"木": "목", "火": "화", "土": "토", "金": "금", "水": "수"}
+    ohaeng_match = re.search(r'([木火土金水목화토금수])오행', query)
     if ohaeng_match:
-        o = ohaeng_match.group(1)
+        raw = ohaeng_match.group(1)
+        o = _HANJA_TO_OHAENG.get(raw, raw)   # 한자면 한글로 변환, 이미 한글이면 그대로
         conditions.append({"resource_ohaeng": o})
         desc_parts.append(f"자원오행 {o}")
 
@@ -143,9 +145,9 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
         filter_info = f" [조건 필터: {cond_desc}]" if cond_desc else ""
         lines = [
             f"[검색 결과] '{query}' — hanja_col ({len(documents)}건){filter_info}\n"
-            f"답변 작성 시 각 항목의 [출처] 태그를 그대로 포함하세요.\n"
+            f"답변 작성 시 각 항목의 [한자: 자원오행표] 태그를 그대로 포함하세요.\n"
         ]
-        for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
+        for i, meta in enumerate(metadatas, 1):
             m = meta or {}
             hanja       = m.get("hanja", "")
             hangul      = m.get("hangul", "")
@@ -158,7 +160,7 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
                 f"[{i}] {hanja}({hangul}) | 획수: {strokes}획 | "
                 f"자원오행: {res_ohaeng} | 발음오행: {snd_ohaeng} | "
                 f"뜻: {meaning} | 인명용: {is_person}\n"
-                f"    [출처: hanja_col / 자원오행표 / {res_ohaeng}오행]"
+                f"    [한자: 자원오행표 {res_ohaeng}오행]"
             )
     else:
         lines = [f"[{collection}] '{query}' 검색 결과 {len(documents)}건\n"]

@@ -95,8 +95,9 @@ def search_law(query: str) -> str:
         }
         data = _request_with_retry(search_url, params=search_params)
 
-        total = data.get("LawSearch", {}).get("totalCnt", "0")
-        law_list = _ensure_list(data.get("LawSearch", {}).get("law", []))
+        ls = data.get("LawSearch") or {}
+        total = ls.get("totalCnt", "0")
+        law_list = _ensure_list(ls.get("law", []))
 
         if not law_list:
             return f"[검색 결과 없음] '{query}'에 해당하는 법령을 찾을 수 없습니다. 다른 키워드로 검색해보세요."
@@ -104,19 +105,19 @@ def search_law(query: str) -> str:
         # 상위 10건만 반환 (너무 많으면 LLM 컨텍스트 낭비)
         results = []
         for idx, law in enumerate(law_list[:10], 1):
-            law_name = law.get("lawNm", "이름 없음")
-            ls_id = law.get("lsId", "")
-            ef_yd = law.get("efYd", "정보 없음")
+            law_name = law.get("법령명한글", "이름 없음")
+            mst = law.get("법령일련번호", "")
+            ef_yd = law.get("시행일자", "정보 없음")
 
             results.append(
                 f"  {idx}. {law_name}\n"
-                f"     법령ID: {ls_id}\n"
+                f"     법령일련번호(MST): {mst}\n"
                 f"     시행일: {ef_yd}"
             )
 
         header = f"[검색 결과] '{query}' 관련 법령 {len(results)}건 (전체 {total}건)\n"
         body = "\n".join(results)
-        footer = "\n\n조문 내용을 확인하려면 get_law_article 도구에 법령ID(ls_id)를 전달하세요."
+        footer = "\n\n조문 내용을 확인하려면 get_law_article 도구에 법령일련번호(MST)를 전달하세요."
 
         return header + "\n" + body + footer
 
@@ -130,25 +131,25 @@ def search_law(query: str) -> str:
 # Tool 2: 국가법령정보 — 법령 본문 조회 (lawService.do)
 # ═══════════════════════════════════════════════════════
 @mcp.tool()
-def get_law_article(ls_id: str, article_num: str | None = None) -> str:
+def get_law_article(mst: str, article_num: str | None = None) -> str:
     """
-    search_law에서 확인한 법령ID(ls_id)로 법령 본문을 조회합니다.
+    search_law에서 확인한 법령일련번호(MST)로 법령 본문을 조회합니다.
 
     사용 방법:
-      - article_num 미입력: 해당 법령의 전체 조문 번호와 제목 목록을 반환합니다.
+      - article_num 미입력: 해당 법령의 전체 조문 번호 목록을 반환합니다.
       - article_num 입력: 해당 조문의 본문 텍스트를 반환합니다.
 
     일반적인 호출 흐름:
-      1) search_law("가족관계")로 법령 목록과 법령ID 확인
-      2) get_law_article(ls_id="...", article_num=None)으로 조문 목록 확인
-      3) get_law_article(ls_id="...", article_num="44")로 필요한 조문 본문 조회
+      1) search_law("가족관계")로 법령 목록과 법령일련번호(MST) 확인
+      2) get_law_article(mst="...", article_num=None)으로 조문 목록 확인
+      3) get_law_article(mst="...", article_num="44")로 필요한 조문 본문 조회
 
     주의:
       - 이 API는 법령 '조문 텍스트'만 반환합니다.
       - 인명용 한자 9,389자 전체 목록은 제공하지 않습니다.
 
     Args:
-        ls_id: search_law로 확인한 법령일련번호 (예: "001234")
+        mst: search_law로 확인한 법령일련번호 (예: "257203")
         article_num: 조문 번호 (예: "44"). 미입력 시 조문 목록 반환.
 
     Returns:
@@ -164,26 +165,28 @@ def get_law_article(ls_id: str, article_num: str | None = None) -> str:
             "OC": api_key,
             "target": "law",
             "type": "JSON",
-            "lsId": ls_id,
+            "MST": mst,
         }
         law_data = _request_with_retry(body_url, params=body_params)
 
-        law_body = law_data.get("Law", {})
-        law_name = law_body.get("BasicInfo", {}).get("법령명_한글", "법령명 미상")
-        jo_list = _ensure_list(law_body.get("Jo", []))
+        law_body = law_data.get("법령") or {}
+        law_name = (law_body.get("기본정보") or {}).get("법령명_한글", "법령명 미상")
+        jo_list = _ensure_list((law_body.get("조문") or {}).get("조문단위", []))
 
         if not jo_list:
-            return f"[결과 없음] 법령ID '{ls_id}'에 해당하는 조문을 찾을 수 없습니다."
+            return f"[결과 없음] 법령일련번호 '{mst}'에 해당하는 조문을 찾을 수 없습니다."
 
         # ── article_num이 없으면: 조문 목록 반환 ──
         if article_num is None:
             article_entries = []
             for jo in jo_list:
-                jo_no = jo.get("joNo", "?")
-                jo_title = jo.get("joTitle", "")
+                jo_no = jo.get("조문번호", "?")
+                jo_content = jo.get("조문내용", "")
+                # 조문내용 첫 줄만 제목으로 사용
+                jo_title = jo_content.strip().splitlines()[0][:30] if jo_content.strip() else ""
                 label = f"  - 제{jo_no}조"
                 if jo_title:
-                    label += f" ({jo_title})"
+                    label += f" {jo_title}"
                 article_entries.append(label)
 
             header = f"[조문 목록] {law_name} (총 {len(article_entries)}개 조문)\n"
@@ -197,17 +200,13 @@ def get_law_article(ls_id: str, article_num: str | None = None) -> str:
         target_num = "".join(re.findall(r'[0-9의]', str(article_num)))
 
         for jo in jo_list:
-            jo_no_raw = str(jo.get("joNo", ""))
+            jo_no_raw = str(jo.get("조문번호", ""))
             jo_no_digits = "".join(re.findall(r'[0-9의]', jo_no_raw))
 
             if jo_no_digits == target_num:
-                jo_title = jo.get("joTitle", "")
-                jo_content = jo.get("joCts", "")
+                jo_content = jo.get("조문내용", "")
 
                 header = f"[조문 내용] {law_name} 제{target_num}조"
-                if jo_title:
-                    header += f" ({jo_title})"
-
                 source = f"\n\n출처: 국가법령정보센터 — {law_name}"
                 return header + "\n\n" + jo_content + source
 
@@ -252,10 +251,6 @@ def verify_korean_word(word: str) -> str:
         "q": word,
         "req_type": "json",
         "method": "exact",
-        "advanced": "y",
-        "target": "1",
-        "type2": "native",
-        "pos": "1",
     }
 
     try:

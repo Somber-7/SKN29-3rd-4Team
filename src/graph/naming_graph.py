@@ -153,6 +153,19 @@ def route_selector(state: NamingState) -> NextAction:
 
 
 # ─────────────────────────────────────────────
+# 유틸
+# ─────────────────────────────────────────────
+
+def _parse_db_result(raw: str) -> str:
+    """db_server JSON 반환값에서 message 필드를 추출합니다. 파싱 실패 시 raw 반환."""
+    try:
+        parsed = json.loads(raw)
+        return parsed.get("message", raw)
+    except (json.JSONDecodeError, TypeError):
+        return raw
+
+
+# ─────────────────────────────────────────────
 # Tool 노드
 # ─────────────────────────────────────────────
 
@@ -165,11 +178,13 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "suri_col"))
     if any(kw in query for kw in {"오행", "상생", "상극", "木", "火", "土", "金", "水"}):
         results.append(rag_server.search_rag(query, "ohaeng_col"))
-    if any(kw in query for kw in {"한자", "획수", "뜻", "음", "독음", "추천"}):
+    if any(kw in query for kw in {"한자", "획수", "음", "독음"}) or (
+        "추천" in query and "이름" not in query and "순우리말" not in query
+    ):
         results.append(rag_server.search_rag(query, "hanja_col"))
     if any(kw in query for kw in {"법령", "조항", "조문", "출생신고", "인명용"}):
         results.append(rag_server.search_rag(query, "law_col"))
-    if any(kw in query for kw in {"순우리말", "우리말", "이름 뜻", "이름 추천"}):
+    if any(kw in query for kw in {"순우리말", "우리말", "이름 뜻", "이름 추천", "우리말 이름"}):
         results.append(rag_server.search_rag(query, "urimalsam_col"))
     if any(kw in query for kw in {"트렌드", "유행", "최근 이름", "요즘 이름", "현대적", "세련"}):
         results.append(rag_server.search_rag(query, "trend_col"))
@@ -193,30 +208,28 @@ def sql_db_node(state: NamingState) -> NamingState:
     """81수리 4격 계산 또는 吉수 조합 역산을 수행합니다."""
     query = state["query"]
 
-    # 한자/괄호 뒤 숫자가 아닌, 단독 숫자만 추출 (예: "8획", "획수 8", "8")
-    nums = re.findall(r"(?<!\()\b(\d+)\b(?!\s*[a-zA-Z가-힣]획?[^수])", query)
-    nums = re.findall(r"\b\d+\b", query)  # 단순 숫자 전체 추출
+    nums = re.findall(r"\b\d+\b", query)
 
     if any(kw in query for kw in {"어울리는 획수", "吉수", "획수 조합", "역산", "길한 획수"}):
         if nums:
-            result = db_server.find_lucky_strokes(int(nums[0]))
+            result = _parse_db_result(db_server.find_lucky_strokes(int(nums[0])))
         else:
             result = "[안내] 성씨 획수를 입력해주세요. 예: '김씨(8획)에 어울리는 吉수 조합'"
 
     elif any(kw in query for kw in {"오행 조합", "오행 궁합"}):
         ohaeng = re.findall(r"[木火土金水]", query)
         if len(ohaeng) >= 3:
-            result = db_server.lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2])
+            result = _parse_db_result(db_server.lookup_ohaeng_combo(ohaeng[0], ohaeng[1], ohaeng[2]))
         else:
             result = "[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요."
 
     elif len(nums) >= 3:
-        result = db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2]))
+        result = _parse_db_result(db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2])))
 
     elif nums:
         result = (
             f"[안내] 성씨 획수 {nums[0]}획 기준으로 吉수 조합을 역산합니다.\n"
-            + db_server.find_lucky_strokes(int(nums[0]))
+            + _parse_db_result(db_server.find_lucky_strokes(int(nums[0])))
         )
 
     else:

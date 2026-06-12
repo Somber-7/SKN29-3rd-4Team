@@ -38,7 +38,7 @@ _embedding_fn = SentenceTransformerEmbeddingFunction(
 )
 
 # 사용 가능한 컬렉션 목록 (인덱싱 완료된 것만 추가)
-_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col"]
+_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "trend_col"]
 
 
 def _get_collection(name: str):

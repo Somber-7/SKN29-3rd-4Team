@@ -69,14 +69,15 @@ def apply_kospacing_with_hanja_protection(text):
         
     return spaced_text
 
-def table_to_markdown(table_data):
+def table_to_markdown(table_data, year, title):
     """
-    2차원 리스트를 마크다운 표 문자열로 변환합니다.
+    2차원 리스트를 마크다운 표 문자열로 변환하고,
+    표만 단독으로 떨어졌을 때 문맥(연도)을 알 수 있도록 캡션을 추가합니다.
     """
     if not table_data or not table_data[0]:
         return ""
         
-    md_lines = []
+    md_lines = [f"**[통계 표 기준 연도: {year}년]** *(출처: {title})*"]
     for i, row in enumerate(table_data):
         cleaned_row = [str(cell).replace('\n', ' ') if cell is not None else "" for cell in row]
         row_str = "| " + " | ".join(cleaned_row) + " |"
@@ -101,7 +102,7 @@ def in_bbox(obj_bbox, tables_bboxes):
             return True
     return False
 
-def process_pdf(pdf_path, needs_spacing=False):
+def process_pdf(pdf_path, year, title, needs_spacing=False):
     chunks = []
     
     with pdfplumber.open(pdf_path) as pdf:
@@ -113,7 +114,7 @@ def process_pdf(pdf_path, needs_spacing=False):
             
             extracted_tables = page.extract_tables()
             for md_table_data in extracted_tables:
-                md_str = table_to_markdown(md_table_data)
+                md_str = table_to_markdown(md_table_data, year, title)
                 if md_str.strip():
                     chunks.append({
                         "content": md_str,
@@ -214,7 +215,7 @@ def main():
         else:
             print(f"-> 공백 비율 {space_ratio:.2f}%: 기본 유지")
 
-        chunks = process_pdf(pdf_path, needs_spacing=needs_spacing)
+        chunks = process_pdf(pdf_path, meta["year"], meta["title"], needs_spacing=needs_spacing)
         print(f"-> {len(chunks)}개 청크(표+본문) 생성 완료.")
         
         for c in chunks:

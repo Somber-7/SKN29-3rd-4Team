@@ -39,7 +39,7 @@ _embedding_fn = SentenceTransformerEmbeddingFunction(
 )
 
 # 사용 가능한 컬렉션 목록 (인덱싱 완료된 것만 추가)
-_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "trend_col", "paper_col"]
+_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "paper_col"]
 
 
 def _get_collection(name: str):
@@ -121,7 +121,7 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
       - hanja_col     : 한자 뜻, 획수, 음(독음), 추천 관련 질문
       - law_col       : 법령, 인명용 한자, 출생신고, 작명 규정 관련 질문
       - urimalsam_col : 순우리말 이름, 이름 뜻, 성별 경향, 최근 추세 관련 질문
-      - paper_col     : 작명 관련 학술 논문, 이름 트렌드 연구, 명명 패턴 통계 관련 질문
+      - paper_col     : 작명 관련 학술 논문, 이름 트렌드/유행 연구, 명명 패턴 통계 관련 질문
                         쿼리에 "표"/"통계"/"순위" 포함 시 → 통계표 청크 우선 검색
 
     Args:

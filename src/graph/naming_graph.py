@@ -7,7 +7,7 @@ naming_graph.py — 작명 QA LangGraph ReAct StateGraph
 
 [노드 구성]
   llm_router   — LLM이 다음 실행할 Tool 결정 (또는 답변 생성 판단)
-  internal_rag — ChromaDB 벡터 검색 (한자/수리/오행/법령/순우리말)
+  internal_rag — ChromaDB 벡터 검색 (한자/수리/오행/법령/순우리말/논문)
   graph_db     — Neo4j 한자 관계 그래프 조회
   sql_db       — 81수리 계산 / 吉수 역산 / 오행 조합 조회
   external_api — 국가법령정보 / 우리말샘 API 호출
@@ -78,7 +78,7 @@ _ROUTER_SYSTEM = """당신은 작명 QA 시스템의 라우터입니다.
 사용자 질문과 지금까지 수집된 정보를 보고 다음에 실행할 Tool을 결정하세요.
 
 [사용 가능한 Tool]
-- internal_rag  : 한자 뜻/추천, 수리 운세 설명, 오행 조합 설명, 법령 조문, 순우리말 이름 검색
+- internal_rag  : 한자 뜻/추천, 수리 운세 설명, 오행 조합 설명, 법령 조문, 순우리말 이름 검색, 논문/이름 트렌드 검색
 - sql_db        : 획수 수치 계산, 81수리 4격 계산, 吉수 획수 조합 역산, 오행 조합 운세 수치 조회
 - external_api  : 국가법령정보 실시간 조회, 순우리말 단어 존재 여부 검증
 - graph_db      : 한자-오행 관계 탐색, 상생/상극 경로 탐색 (Neo4j)
@@ -186,9 +186,8 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "law_col"))
     if any(kw in query for kw in {"순우리말", "우리말", "이름 뜻", "이름 추천", "우리말 이름"}):
         results.append(rag_server.search_rag(query, "urimalsam_col"))
-    if any(kw in query for kw in {"트렌드", "유행", "최근 이름", "요즘 이름", "현대적", "세련"}):
-        results.append(rag_server.search_rag(query, "trend_col"))
-    if any(kw in query for kw in {"논문", "연구", "통계", "음절", "성별 이름", "명명", "작명 경향"}):
+    if any(kw in query for kw in {"논문", "연구", "통계", "음절", "성별 이름", "명명", "작명 경향",
+                                   "트렌드", "유행", "최근 이름", "요즘 이름", "현대적"}):
         results.append(rag_server.search_rag(query, "paper_col"))
     if not results:
         results.append(rag_server.search_rag(query, "hanja_col"))

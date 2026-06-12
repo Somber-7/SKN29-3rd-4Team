@@ -1,7 +1,7 @@
 """
 rag_server.py — ChromaDB 벡터 검색 MCP 서버 (internal_rag 노드)
 
-전처리된 수리/오행/한자/법령 문서를 ChromaDB에서 의미 검색합니다.
+전처리된 수리/오행/한자/법령/논문 문서를 ChromaDB에서 의미 검색합니다.
 임베딩 모델: jhgan/ko-sroberta-multitask (로컬, sentence-transformers)
 
 [컬렉션 구조]
@@ -10,6 +10,7 @@ rag_server.py — ChromaDB 벡터 검색 MCP 서버 (internal_rag 노드)
   hanja_col     — 한자 뜻/음/획수 문서
   law_col       — 법령 PDF 파싱 문서
   urimalsam_col — 순우리말 이름 문서
+  paper_col     — 작명 관련 학술 논문 문서 (본문 + 통계표, 266건)
 
 [Tool 목록]
   1. search_rag — 컬렉션 지정 의미 검색
@@ -38,7 +39,7 @@ _embedding_fn = SentenceTransformerEmbeddingFunction(
 )
 
 # 사용 가능한 컬렉션 목록 (인덱싱 완료된 것만 추가)
-_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "trend_col"]
+_COLLECTIONS = ["suri_col", "ohaeng_col", "hanja_col", "law_col", "urimalsam_col", "trend_col", "paper_col"]
 
 
 def _get_collection(name: str):
@@ -79,6 +80,23 @@ def _parse_hanja_conditions(query: str) -> tuple[dict | None, str]:
     return where, ", ".join(desc_parts)
 
 
+def _parse_paper_conditions(query: str) -> tuple[dict | None, str]:
+    """쿼리에서 chunk_type 조건을 파싱합니다. paper_col 전용.
+
+    Returns:
+        (where_dict, condition_desc)
+        조건이 없으면 (None, "") → text+table 전체 검색
+    """
+    _TABLE_KEYWORDS = {"표", "통계", "순위표", "순위", "빈도표", "표 형식"}
+    _TEXT_KEYWORDS  = {"본문", "텍스트", "내용만"}
+
+    if any(kw in query for kw in _TABLE_KEYWORDS):
+        return {"chunk_type": "table"}, "chunk_type=table"
+    if any(kw in query for kw in _TEXT_KEYWORDS):
+        return {"chunk_type": "text"}, "chunk_type=text"
+    return None, ""
+
+
 # ═══════════════════════════════════════════════════════
 # Tool 1: 의미 검색
 # ═══════════════════════════════════════════════════════
@@ -98,10 +116,12 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
       - hanja_col     : 한자 뜻, 획수, 음(독음), 추천 관련 질문
       - law_col       : 법령, 인명용 한자, 출생신고, 작명 규정 관련 질문
       - urimalsam_col : 순우리말 이름, 이름 뜻, 성별 경향, 최근 추세 관련 질문
+      - paper_col     : 작명 관련 학술 논문, 이름 트렌드 연구, 명명 패턴 통계 관련 질문
+                        쿼리에 "표"/"통계"/"순위" 포함 시 → 통계표 청크 우선 검색
 
     Args:
         query: 검색 질문 (자연어 그대로 입력)
-        collection: 검색할 컬렉션 이름 (suri_col / ohaeng_col / hanja_col / law_col / urimalsam_col)
+        collection: 검색할 컬렉션 이름 (suri_col / ohaeng_col / hanja_col / law_col / urimalsam_col / paper_col)
         n_results: 반환할 문서 수 (기본값: 5, 최대: 10)
 
     Returns:
@@ -123,7 +143,12 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
             f"ChromaDB 경로: {CHROMA_DIR}"
         )
 
-    where, cond_desc = _parse_hanja_conditions(query) if collection == "hanja_col" else (None, "")
+    if collection == "hanja_col":
+        where, cond_desc = _parse_hanja_conditions(query)
+    elif collection == "paper_col":
+        where, cond_desc = _parse_paper_conditions(query)
+    else:
+        where, cond_desc = None, ""
 
     try:
         results = col.query(
@@ -161,6 +186,28 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
                 f"자원오행: {res_ohaeng} | 발음오행: {snd_ohaeng} | "
                 f"뜻: {meaning} | 인명용: {is_person}\n"
                 f"    [한자: 자원오행표 {res_ohaeng}오행]"
+            )
+    elif collection == "paper_col":
+        filter_info = f" [필터: {cond_desc}]" if cond_desc else ""
+        lines = [
+            f"[paper_col] '{query}' 검색 결과 {len(documents)}건{filter_info}\n"
+            f"답변 작성 시 각 항목의 [논문: ...] 태그를 그대로 포함하세요.\n"
+        ]
+        for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
+            m = meta or {}
+            similarity  = round(1 - dist, 4)
+            title       = m.get("title", "")
+            author      = m.get("author", "")
+            year        = m.get("year", "")
+            page        = m.get("page_number", "?")
+            chunk_type  = m.get("chunk_type", "text")
+            limit       = 500 if chunk_type == "table" else 300
+            content     = doc[:limit] + ("..." if len(doc) > limit else "")
+            lines.append(
+                f"  [{i}] 유사도: {similarity} | {chunk_type}\n"
+                f"      {title}({year}) — {author} | p.{page}\n"
+                f"      {content}\n"
+                f"      [논문: {title}({year})]"
             )
     else:
         lines = [f"[{collection}] '{query}' 검색 결과 {len(documents)}건\n"]

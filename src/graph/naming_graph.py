@@ -37,6 +37,7 @@ from langgraph.graph import StateGraph, END
 import rag_server
 import db_server
 import law_server
+import graph_server
 
 
 # ─────────────────────────────────────────────
@@ -180,8 +181,7 @@ def internal_rag_node(state: NamingState) -> NamingState:
 
 def graph_db_node(state: NamingState) -> NamingState:
     """Neo4j에서 한자 오행 관계를 조회합니다."""
-    # graph_server.py 팀원 작업 완료 후 연결 예정
-    result = "[graph_db] Neo4j 연결 대기 중 (팀원 작업 후 활성화)"
+    result = graph_server.answer_graph_query(state["query"])
     new_context = state["context"] + "\n\n[graph_db 결과]\n" + result
     return {**state, "context": new_context, "next_action": "generate",
             "used_tools": state.get("used_tools", []) + ["graph_db"]}

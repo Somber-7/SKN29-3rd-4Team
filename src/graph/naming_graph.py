@@ -188,6 +188,8 @@ def internal_rag_node(state: NamingState) -> NamingState:
         results.append(rag_server.search_rag(query, "urimalsam_col"))
     if any(kw in query for kw in {"트렌드", "유행", "최근 이름", "요즘 이름", "현대적", "세련"}):
         results.append(rag_server.search_rag(query, "trend_col"))
+    if any(kw in query for kw in {"논문", "연구", "통계", "음절", "성별 이름", "명명", "작명 경향"}):
+        results.append(rag_server.search_rag(query, "paper_col"))
     if not results:
         results.append(rag_server.search_rag(query, "hanja_col"))
 

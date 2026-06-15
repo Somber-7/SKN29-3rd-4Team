@@ -4,19 +4,54 @@
 
 ---
 
-## 팀 역할 분담
 
-| 역할 | 담당 업무 |
-|---|---|
-| 데이터 담당 | Unihan 파싱, 오행표 병합, 논문 PDF 전처리, ChromaDB 인덱싱 |
-| Graph DB 담당 | Neo4j 스키마 설계, 한자-오행-관계 인덱싱, graph_server.py 구현 |
-| 백엔드 담당 | LangGraph StateGraph 설계, Router, db_server.py |
-| MCP 담당 | rag_server.py, law_server.py, 파이프라인 연결 (internal_rag 파트) |
-| LLM/평가 담당 | 프롬프트 설계, 출처 포함 답변, LLM-as-a-Judge 평가, 파인튜닝 |
+## 팀 소개
 
+> 캐릭터 이미지 파일: `docs/assets/char_임준.png` / `char_최지용.png` / `char_윤대성.png` / `char_이지현.png`
+
+<table>
+  <thead>
+    <tr>
+      <th align="center">구분</th>
+      <th align="center">임준</th>
+      <th align="center">최지용</th>
+      <th align="center">윤대성</th>
+      <th align="center">이지현</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center"><b>캐릭터</b></td>
+      <td align="center"><img src="docs/assets/char_임준.png" width="150"/></td>
+      <td align="center"><img src="docs/assets/char_최지용.png" width="150"/></td>
+      <td align="center"><img src="docs/assets/char_윤대성.png" width="150"/></td>
+      <td align="center"><img src="docs/assets/char_이지현.png" width="150"/></td>
+    </tr>
+    <tr>
+      <td align="center"><b>역할</b></td>
+      <td align="center">팀장<br/><sub>길드 마스터</sub></td>
+      <td align="center">Graph DB<br/><sub>검증 조율사</sub></td>
+      <td align="center">데이터<br/><sub>기록관</sub></td>
+      <td align="center">RAG<br/><sub>사전 감정사</sub></td>
+    </tr>
+    <tr>
+      <td align="center"><b>담당</b></td>
+      <td>Git 브랜치·서버 인프라 관리<br/>전체 일정 조율 및 작업 방향 컨펌</td>
+      <td>Neo4j 스키마 설계<br/>한자-오행 관계 인덱싱<br/>graph_server.py 구현</td>
+      <td>Unihan 파싱·오행표 병합<br/>논문 PDF 전처리<br/>ChromaDB 인덱싱</td>
+      <td>한자·어휘 데이터 검증<br/>임베딩 흐름 정리<br/>RAG 기반 QA 설계</td>
+    </tr>
+    <tr>
+      <td align="center"><b>소개</b></td>
+      <td>Git 흐름과 서버 인프라를 관리하며 팀의 작업이 한 방향으로 합쳐지도록 이끄는 길드 마스터</td>
+      <td>Neo4j 그래프와 데이터 정합성을 검증하며 파이프라인이 안정적으로 연결되도록 조율하는 검증자</td>
+      <td>흩어진 원천 자료와 문서를 연결해 프로젝트의 지식 기반을 여는 기록관</td>
+      <td>한자와 어휘의 의미를 세밀하게 검토해 추천 결과의 신뢰도를 높이는 사전 감정사</td>
+    </tr>
+  </tbody>
+</table>
 
 ---
-
 
 ## 프로젝트 개요
 
@@ -150,41 +185,35 @@ rag_server · db_server · law_server · graph_server
 
 ## 디렉토리 구조
 
-```text
+```
 SKN29-3rd-4Team/
 ├── data/
-│   ├── chroma/                # ChromaDB PersistentClient 저장소 (8개 컬렉션)
-│   ├── processed/             # 전처리 완료 JSON 및 데이터 파이프라인 산출물
-│   │   ├── hanja_documents.json (2,420건)
-│   │   ├── suri_documents.json (81건)
-│   │   ├── ohaeng_documents.json (125건)
+│   ├── raw/
+│   │   ├── unihan/            # Unicode Unihan 원본 TXT
+│   │   ├── pdf/               # 법령·논문 원본 PDF
+│   │   └── reference/         # peoplehanja.json / 81suri.json / yinyang.json
+│   │                          # johab.json / 2016_2026상위_출생신고_이름_현황.xls
+│   ├── processed/             # 전처리 완료 JSON
+│   │   ├── hanja_documents.json
+│   │   ├── suri_documents.json
+│   │   ├── ohaeng_documents.json
 │   │   ├── law_articles.json
-│   │   ├── urimalsam_names.json (301건)
-│   │   ├── paper_documents.json (266청크)
-│   │   ├── ocr/               # OCR 추출 결과 및 비교 이미지
-│   │   └── unihan_maping/     # 한자/유니코드/오행 맵핑 및 정제 산출물
-│   └── raw/                   # 원시 데이터 수집본
-│       ├── ohaeng/            # 자원오행/발음오행 구분표 (XLSX)
-│       ├── pdf/               # 한자, 논문, 법령 등 원본 PDF 8종
-│       ├── reference/         # 81수리, 오행조합, 통계 등 기준 데이터셋
-│       └── unihan/            # Unicode Unihan 원본 TXT 8종
-├── docker/                    # 파이프라인 환경 구성용 Dockerfile
-├── docs/                      # 프로젝트 관련 문서, 회의록, 딥리서치 보고서 등 (약 27종)
-├── notebooks/                 # 로컬 테스트용 Jupyter Notebook
-├── ollama/                    # Ollama Modelfile (qwen3.5:4b 등)
-├── pipelines/                 # Open WebUI 연동 파이프라인 래퍼 (naming_pipeline.py)
+│   │   ├── urimalsam_names.json
+│   │   └── unihan_mapping/
+│   └── chroma/                # ChromaDB PersistentClient 저장소
 ├── src/
-│   ├── data/                  # 크롤링, OCR, ChromaDB 인덱싱 스크립트 모음
-│   ├── graph/                 # LangGraph 기반 ReAct 라우터 및 Neo4j 인덱서
-│   │   ├── naming_graph.py    # 메인 LangGraph StateGraph (Router)
-│   │   └── index_hanja_neo4j.py # Neo4j 한자 그래프 생성 스크립트
-│   ├── mcp/                   # FastMCP 서버 4종 (총 16개 도구)
-│   │   ├── rag_server.py      # ChromaDB 벡터 검색
-│   │   ├── db_server.py       # 수리/오행 DB 연산
-│   │   ├── law_server.py      # 국가법령/우리말샘 API
-│   │   └── graph_server.py    # Neo4j 그래프 탐색
-│   └── preprocess/            # 논문 및 한자 문서 전처리 스크립트
-├── tests/                     # 파이프라인 단위 테스트 코드 (pipeline_test.py)
+│   ├── graph/                 # LangGraph StateGraph (ReAct)
+│   │   └── naming_graph.py
+│   └── mcp/                   # FastMCP 서버 4종
+│       ├── rag_server.py      # ChromaDB 검색 (2 tools)
+│       ├── db_server.py       # 수리/오행 연산 (5 tools)
+│       ├── law_server.py      # 국가법령 API (3 tools)
+│       └── graph_server.py    # Neo4j 탐색 (6 tools)
+├── docs/
+│   ├── project_idea_naming.md
+│   ├── 진행_체크리스트.md
+│   ├── internal_rag_명세서.md
+│   └── db_server_명세서.md
 └── README.md
 ```
 
@@ -197,15 +226,14 @@ SKN29-3rd-4Team/
 | 1단계 | 데이터 수집 및 구조화 | ✅ 완료 |
 | 2단계 | 전처리 (법령 PDF KoNLPy Okt 파싱) | ✅ 완료 |
 | 3단계 | ChromaDB 인덱싱 (6컬렉션) | ✅ 완료 |
-| 3단계 | Neo4j 스키마 설계 및 인덱싱 | ✅ 완료 |
-| 4단계 | LangGraph StateGraph 기본 구조 + 6방향 Router | ✅ 완료 |
-| 4단계 | `graph_db_node` → `graph_server.py` 연결 | ✅ 완료 |
-| 4단계 | ReAct 루프 (다중 의도 질의 처리) | ✅ 완료 |
-| 4단계 | 출처 라벨 + 면책 고지 답변 형식 | ✅ 완료 |
+| 3단계 | Neo4j 스키마 설계 및 인덱싱 | 🔄 진행 중 |
+| 4단계 | LangGraph StateGraph 기본 구조 + 4방향 Router | ✅ 완료 |
+| 4단계 | `graph_db_node` → `graph_server.py` 연결 | ⬜ 예정 |
+| 4단계 | ReAct 루프 (다중 의도 질의 처리) | ⬜ 예정 |
+| 4단계 | 출처 라벨 + 면책 고지 답변 형식 | ⬜ 예정 |
 | 5단계 | MCP 서버 4종 · 16개 도구 구현 | ✅ 완료 |
-| 6단계 | Open WebUI 연동 파이프라인 래퍼 (naming_pipeline) | ✅ 완료 |
-| 7단계 | LLM 답변 생성 (gpt-4o-mini) | 🔄 진행 중 |
-| 8단계 | gpt-4o-mini 파인튜닝 (CoT QA 데이터셋) | ⬜ 예정 |
+| 6단계 | LLM 답변 생성 (gpt-4o-mini) | 🔄 진행 중 |
+| 7단계 | gpt-4o-mini 파인튜닝 (CoT QA 데이터셋) | ⬜ 예정 |
 | 평가 | Ground Truth QA 30~50개 + LLM-as-a-Judge | ⬜ 예정 |
 
 ---
@@ -235,4 +263,4 @@ cp .env.example .env
 
 ---
 
-> 최종 업데이트: 2026-06-15
+> 최종 업데이트: 2026-06-14

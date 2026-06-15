@@ -111,7 +111,7 @@ class Pipeline:
 
         return user_message
 
-    async def pipe(self, user_message: str, model_id: str, messages: list, body: dict) -> str:
+    def pipe(self, user_message: str, model_id: str, messages: list, body: dict) -> str:
         if self.app is None:
             return "[오류] 파이프라인이 초기화되지 않았습니다."
 
@@ -128,5 +128,5 @@ class Pipeline:
             "name_length": 2,
             "surname_hanja": "",
         }
-        result = await self.app.ainvoke(state)
+        result = self.app.invoke(state)
         return result.get("answer", "").strip()

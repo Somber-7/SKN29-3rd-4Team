@@ -143,6 +143,24 @@ def get_hanja_ohaeng(hanja_char: str) -> str:
     return ""
 
 
+def get_hanja_strokes(hanja_char: str) -> int:
+    """ChromaDB hanja_col에서 단일 한자의 획수를 조회합니다."""
+    col = _get_collection("hanja_col")
+    if col is None:
+        return 0
+    try:
+        results = col.get(
+            where={"hanja": hanja_char},
+            include=["metadatas"],
+        )
+        metas = results.get("metadatas") or []
+        if metas:
+            return int(metas[0].get("strokes", 0) or 0)
+    except Exception:
+        pass
+    return 0
+
+
 @functools.lru_cache(maxsize=1)
 def _load_urimalsam() -> list:
     """순우리말 이름 전체를 메모리에 캐싱합니다."""

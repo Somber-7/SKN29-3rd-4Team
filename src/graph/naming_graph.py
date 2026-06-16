@@ -69,6 +69,46 @@ try:
 except Exception:
     pass
 
+# 81수리 등급 사전 {1~81: "吉"/"凶"/"大吉"/"半吉"/...}
+_SURI_RATINGS: dict[int, str] = {}
+try:
+    _SURI_JSON_PATH = os.path.join(
+        os.path.dirname(__file__), "..", "..", "data", "raw", "reference", "81suri.json"
+    )
+    with open(_SURI_JSON_PATH, encoding="utf-8") as _sf:
+        _suri_raw = json.loads("".join(_sf.readlines()[1:]))  # 첫 줄 주석 제거
+    for _entry in _suri_raw:
+        if isinstance(_entry, list) and len(_entry) >= 4 and _entry[0]:
+            _SURI_RATINGS[int(_entry[0])] = str(_entry[3])
+except Exception:
+    pass
+
+
+
+_OHAENG_HJ_MAP = {"木": "목", "火": "화", "土": "토", "金": "금", "水": "수"}
+
+
+def _extract_query_ohaeng(query: str) -> str:
+    """쿼리에 오행 표현이 하나라도 있으면 True 판단용으로 반환합니다 (clarify 스킵 여부 판별)."""
+    m = re.search(r'([木火土金水])오행', query)
+    if m:
+        return _OHAENG_HJ_MAP[m.group(1)]
+    m = re.search(r'(목|화|토|금|수)오행', query)
+    if m:
+        return m.group(1)
+    return ""
+
+
+def _extract_surname_ohaeng(query: str) -> str:
+    """'성에 火오행' 처럼 성씨에 결합된 오행만 추출합니다 (generate 시 성씨 오행 대체용)."""
+    hj_map = {"木": "목", "火": "화", "土": "토", "金": "금", "水": "수"}
+    m = re.search(r'성에\s*([木火土金水])오행', query)
+    if m:
+        return hj_map[m.group(1)]
+    m = re.search(r'성에\s*(목|화|토|금|수)오행', query)
+    if m:
+        return m.group(1)
+    return ""
 
 
 def _resolve_surname(query: str) -> tuple[str, dict | None]:
@@ -101,6 +141,9 @@ def _resolve_surname(query: str) -> tuple[str, dict | None]:
     fallback_hanja = None
     for hm in re.finditer(r'(?<![一-鿿])([一-鿿]{1,2})(?![一-鿿])', after):
         hanja = hm.group(1)
+        # "木오행", "火오행" 같은 오행 수식어는 성씨 한자가 아님
+        if after[hm.end():hm.end()+2] == '오행':
+            continue
         ohaeng = _lookup_ohaeng(hanja)
         if ohaeng:
             return surname_kr, {"hanja": hanja, "resource_ohaeng": ohaeng, "strokes": 0}
@@ -271,6 +314,35 @@ def _drop_duplicate_sound_names(text: str) -> str:
     return preamble + "".join(renumbered)
 
 
+def _drop_duplicate_hanja_names(text: str) -> str:
+    """추천 이름들 사이에 같은 한자가 중복으로 사용된 경우, 나중 이름을 제거하고 재번호화합니다."""
+    preamble, sections = _split_name_sections(text)
+    seen_hanja: set[str] = set()
+    valid: list[str] = []
+    # 이름 헤더에서 한자 추출: ## [이름 N] 이름 (한자조합)
+    hanja_pattern = re.compile(r'##\s*\[이름\s*\d+\]\s*[가-힣]+\s*\(([一-鿿]+)\)')
+    for sec in sections:
+        m = hanja_pattern.search(sec)
+        if not m:
+            valid.append(sec)
+            continue
+        hanja_combo = m.group(1)
+        chars = list(hanja_combo)
+        if any(ch in seen_hanja for ch in chars):
+            continue  # 이미 사용된 한자 포함 → 제거
+        seen_hanja.update(chars)
+        valid.append(sec)
+    if len(valid) == len(sections):
+        return text
+    if not valid:
+        return text
+    renumbered = []
+    for i, sec in enumerate(valid, 1):
+        sec = re.sub(r'(## \[이름 )\d+(\])', rf'\g<1>{i}\2', sec, count=1)
+        renumbered.append(sec)
+    return preamble + "".join(renumbered)
+
+
 def _drop_surname_sound_overlap(text: str, surname_kr: str) -> str:
     """이름 마지막 글자 발음이 성씨와 같은 이름을 제거하고 재번호화합니다.
     예: 성씨 '윤'이면 '윤아윤(~윤)' 제거."""
@@ -389,6 +461,7 @@ def _repair_sanggeuk_names(
         )),
     ])
     raw = re.sub(r"<think>.*?</think>", "", resp.content, flags=re.DOTALL).strip()
+    raw = re.sub(r'^\[원본 추천 결과\]\s*\n?', '', raw).strip()
     raw = _correct_strokes_in_output(raw)
     raw = _correct_ohaeng_in_output(raw)
     # 수리 후에도 상극 남아있으면 제거
@@ -459,14 +532,14 @@ _llm_router = ChatOpenAI(
 _llm_generate = ChatOpenAI(
     model="gpt-5.4-mini",
     temperature=0.7,
-    max_tokens=2048,
+    max_tokens=8192,
 )
 
 # Verify: 검증은 결정론적이어야 함 (temperature=0)
 _llm_verify = ChatOpenAI(
     model="gpt-5.4-mini",
     temperature=0,
-    max_tokens=1024,
+    max_tokens=2048,
 )
 
 # ─────────────────────────────────────────────
@@ -505,6 +578,7 @@ _ROUTER_SYSTEM = """당신은 작명 QA 시스템의 라우터입니다.
   · 한자 + 순우리말 동시 추천: ["hanja_col", "paper_col", "urimalsam_col"] 모두 포함.
 - 이미 실행한 Tool은 선택 금지.
 - 한자 이름 추천 요청인 경우: [지금까지 수집된 정보 요약]이 '없음'이면 반드시 internal_rag를 먼저 실행. generate 바로 선택 금지.
+- 吉수(획수 조합)가 필요한 이름 추천 요청인 경우: sql_db를 반드시 실행해야 한다. internal_rag 실행 후에도 sql_db 결과가 없으면 sql_db를 선택할 것. generate 직행 금지.
 - 그 외 정보가 충분하면 generate 선택.
 
 예시:
@@ -537,16 +611,25 @@ def llm_router_node(state: NamingState) -> NamingState:
     """LLM이 다음 실행할 Tool을 판단합니다."""
     iterations = state.get("iterations", 0)
     used_tools = state.get("used_tools", [])
-    surname_kr, surname_info = "", None
+    query = state["query"]
+
+    # 성씨 한자는 모든 이터레이션에서 항상 파악 — override 체크(line ~619)도 이 값을 사용
+    surname_kr, surname_info = _resolve_surname(query)
 
     # 첫 진입 시 성씨 한자 확인 — LLM 판단에 맡기지 않고 코드로 강제
     if iterations == 0:
-        query = state["query"]
-        surname_kr, surname_info = _resolve_surname(query)
+        # 동음이의 없는 성씨는 _SURNAME_OHAENG 사전으로 자동 해결 (clarify 불필요)
+        if surname_kr and not surname_info:
+            _entries = [(k, v) for k, v in _SURNAME_OHAENG.items() if v.get("hangul") == surname_kr]
+            if len(_entries) == 1:
+                _hk, _ev = _entries[0]
+                surname_info = {"hanja": _hk, "resource_ohaeng": _ev.get("resource_ohaeng", ""), "strokes": 0}
         is_pure_korean = any(kw in query for kw in _KOREAN_NAME_KW) and "한자" not in query
-        is_name_req = any(kw in query for kw in {"이름", "추천", "작명", "짓"})
+        is_name_req = any(kw in query for kw in {"추천", "작명", "짓", "골라", "제안", "뽑아", "지어", "선정"})
         if surname_kr and not surname_info and not is_pure_korean and is_name_req:
-            return {**state, "next_action": "clarify", "iterations": 1}
+            # 오행이 명시된 경우(火오행 등)는 성씨 한자 없어도 generate 가능
+            if not _extract_query_ohaeng(query):
+                return {**state, "next_action": "clarify", "iterations": 1}
 
     # 최대 반복 초과 시 강제 generate
     if iterations >= MAX_ITERATIONS:
@@ -686,6 +769,12 @@ def internal_rag_node(state: NamingState) -> NamingState:
                 ))
             else:
                 results.append(rag_server.sample_hanja(query, n_results=n_results))
+        elif col == "urimalsam_col" and is_name_query:
+            count_match = re.search(r'(\d+)\s*개', query)
+            req_count = int(count_match.group(1)) if count_match else 3
+            n_results = min(max(30, req_count * 6), 60)
+            is_single_req = any(kw in query for kw in _SINGLE_KW)
+            results.append(rag_server.sample_urimalsam(query, n_results=n_results, single_only=is_single_req))
         else:
             results.append(rag_server.search_rag(query, col))
 
@@ -706,13 +795,13 @@ def sql_db_node(state: NamingState) -> NamingState:
     """81수리 4격 계산 또는 吉수 조합 역산을 수행합니다."""
     query = state["query"]
 
-    nums = re.findall(r"\b\d+\b", query)
+    nums = re.findall(r'\d+', query)  # \b\d+\b는 한글 앞에서 미매칭 — \d+로 대체
 
     if any(kw in query for kw in {"어울리는 획수", "吉수", "획수 조합", "역산", "길한 획수"}):
         if nums:
             result = _parse_db_result(db_server.find_lucky_strokes(int(nums[0])))
         else:
-            result = "[안내] 성씨 획수를 입력해주세요. 예: '김씨(8획)에 어울리는 吉수 조합'"
+            result = "[안내] 성씨 한자를 괄호로 표기해 주세요. 예: '김씨(金) 성에 어울리는 吉수 조합'"
 
     elif any(kw in query for kw in {"오행 조합", "오행 궁합"}):
         ohaeng = re.findall(r"[木火土金水]", query)
@@ -722,9 +811,10 @@ def sql_db_node(state: NamingState) -> NamingState:
             result = "[안내] 오행 조합 조회는 성씨·이름1·이름2의 오행(木/火/土/金/水)을 모두 입력해주세요."
 
     elif len(nums) >= 3:
-        result = _parse_db_result(db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2])))
+        calc = _parse_db_result(db_server.calculate_name_suri(int(nums[0]), int(nums[1]), int(nums[2])))
+        result = "[수리 계산 완료] 아래 4격 수치는 이미 계산된 값입니다. 반드시 그대로 사용하고 직접 재계산 금지.\n\n" + calc
 
-    elif nums:
+    elif len(nums) == 1:
         result = (
             f"[안내] 성씨 획수 {nums[0]}획 기준으로 吉수 조합을 역산합니다.\n"
             + _parse_db_result(db_server.find_lucky_strokes(int(nums[0])))
@@ -814,11 +904,12 @@ _GENERATE_SYSTEM_SINGLE = """당신은 한국 작명 전문가 AI입니다. 외�
 - 후보 없을 시: [hanja_col 결과]에서만 선택. 목록 외 한자·오행 추측 금지.
 - hangul 필드 = 해당 한자의 이름 발음. 다른 발음 사용 금지.
 - 성씨 한자 재사용 금지. 부정적·불길한 뜻(그치다·막다·슬프다 등) 금지.
+- 추천 이름들끼리 같은 한자 절대 중복 금지. 예: 이름 1에 志를 쓰면 이름 2~N에 志 재사용 불가. 이름 전체를 다 생성한 뒤 중복 한자가 있으면 반드시 교체할 것.
 
 [이름 구성 — 우선순위 순]
 ① 이름으로 아름다운 뜻 우선.
-   ✅ 빛날·아름다울·고울·맑을·지혜·은혜·꽃·별·봄·기쁠·예쁠·슬기·향기·상서로울
-   ❌ 집·건물·관청·차례·달력·가지·관직·직업·숫자·사물 (이름으로 어색)
+   권장: 빛날·아름다울·고울·맑을·지혜·은혜·꽃·별·봄·기쁠·예쁠·슬기·향기·상서로울
+   금지: 집·건물·관청·차례·달력·가지·관직·직업·숫자·사물 (이름으로 어색)
 ② 오행: 상생 > 중립. 상극 절대 금지.
 
 [출력 형식] — 이름마다 반복:
@@ -828,9 +919,11 @@ _GENERATE_SYSTEM_SINGLE = """당신은 한국 작명 전문가 AI입니다. 외�
 **한자 풀이**:
 - 이름 글자({한자}) — {뜻}, {N}획 [{오행}]
 **오행 흐름**: 성씨({오행}) → 이름({오행}) — {상생/중립}
-[sql_db 결과] 있으면 **수리**: 원격N격(吉/凶), 형격N격(吉/凶). 없으면 생략.
+수리(획수 합산)를 직접 계산하거나 출력하지 말 것. 수리는 시스템이 자동 삽입한다.
+[吉수 한자 획수 조건] 표시가 있으면 해당 획수 조합의 한자를 우선 선택.
+수리 후처리로 일부 이름이 제거될 수 있으니 요청보다 넉넉하게 생성하되, 응답 첫 줄에 생성 개수를 언급하지 마세요 — 이름 추천만 출력합니다.
 
-[논문: ...], [한자: ...], [출처: ...] 등 내부 태그 출력 금지. 답변은 한국어."""
+[논문: ...], [한자: ...], [출처: ...], [참고 정보], [검증된 한자 조합 후보], [吉수리 획수 힌트] 등 내부 태그·컨텍스트 출력 절대 금지. 이름 추천 결과만 출력. 답변은 한국어."""
 
 
 _GENERATE_SYSTEM_KOREAN = """당신은 한국 작명 전문가 AI입니다.
@@ -840,11 +933,28 @@ _GENERATE_SYSTEM_KOREAN = """당신은 한국 작명 전문가 AI입니다.
 - 단, 사용자가 특정 순우리말(예: 가람, 나래 등)을 명시적으로 질문하거나 추천을 요구한 경우에는, 해당 단어가 [urimalsam_col 결과]에 없더라도 거절하지 말고 이름 후보로 적극 검토하고 뜻풀이를 제공하세요.
 - 한자를 한글로 읽은 단어도 한자어 → 금지.
 - 이름으로 어색한 단어(동사·형용사 어간, 행동·현상 표현) 금지.
+- 동음이의어에 부정적 의미가 있는 단어 금지. 예: 아슬(아슬아슬), 나락(나락에 빠지다), 독(독이 되다).
 
 [출력 형식] — 이름마다 반복:
 ## [이름 N] {성씨}{순우리말이름}
 **추천 이유**: 추천 근거 1~2문장.
-**뜻풀이**: 이름의 순우리말 뜻과 어원.
+**뜻풀이**: [urimalsam_col 결과]에 기재된 해당 단어의 뜻을 그대로 사용. 재해석·추가 설명 금지.
+
+획수·오행·한자 언급 절대 금지. 답변은 한국어."""
+
+_GENERATE_SYSTEM_KOREAN_SINGLE = """당신은 한국 작명 전문가 AI입니다.
+
+[제약 — 엄수]
+- [urimalsam_col 결과] 목록에서 반드시 1음절(한 글자) 단어만 선택. 2글자 이상 절대 금지.
+- 목록 외 단어·한자어·임의 조합 절대 금지.
+- 한자를 한글로 읽은 단어도 한자어 → 금지.
+- 이름으로 어색한 단어(동사·형용사 어간, 행동·현상 표현) 금지.
+- 동음이의어에 부정적 의미가 있는 단어 금지. 예: 독(독약), 날(날이 서다), 불(불이 나다).
+
+[출력 형식] — 이름마다 반복:
+## [이름 N] {성씨}{순우리말1글자}
+**추천 이유**: 추천 근거 1~2문장.
+**뜻풀이**: [urimalsam_col 결과]에 기재된 해당 단어의 뜻을 그대로 사용. 재해석·추가 설명 금지.
 
 획수·오행·한자 언급 절대 금지. 답변은 한국어."""
 
@@ -858,14 +968,15 @@ _GENERATE_SYSTEM = """당신은 한국 작명 전문가 AI입니다.
 - hangul 필드 = 해당 한자의 이름 발음. 다른 발음 사용 금지.
 - 성씨 한자를 이름에 재사용 금지. 성씨와 이름 첫 글자 또는 마지막 글자 발음 동일 금지.
 - 추천 이름끼리 한글 발음이 같으면 안 됨. 예: '서연'이 이미 있으면 한자가 달라도 '서연' 다시 금지.
+- 추천 이름들끼리 같은 한자 절대 중복 금지. 예: 이름 1에 志를 쓰면 이름 2~N에 志 재사용 불가. 이름 전체를 다 생성한 뒤 중복 한자가 있으면 반드시 교체할 것.
 
 [이름 구성 — 우선순위 순]
 ① 두 한자의 뜻이 조합되어 자연스러운 하나의 이미지를 만드는 조합 선택.
-   ✅ 好: 智(지혜)+雅(우아할), 柔(부드러울)+恩(은혜), 瑞(상서로울)+蓮(연꽃)
-   ❌ 不: 書(글)+然(그럴) 연결 어색 | 廈(큰집)+恩(은혜) 의미 단절
+   好: 智(지혜)+雅(우아할), 柔(부드러울)+恩(은혜), 瑞(상서로울)+蓮(연꽃)
+   不: 書(글)+然(그럴) 연결 어색 | 廈(큰집)+恩(은혜) 의미 단절
 ② 이름으로 아름다운 뜻 우선.
-   ✅ 빛날·아름다울·고울·맑을·지혜·은혜·꽃·별·봄·기쁠·예쁠·슬기·향기·상서로울
-   ❌ 걸을·갚을·작은성·달릴·떨어질·관청·관직·직업·숫자·사물·현상 (이름으로 어색)
+   권장: 빛날·아름다울·고울·맑을·지혜·은혜·꽃·별·봄·기쁠·예쁠·슬기·향기·상서로울
+   금지: 걸을·갚을·작은성·달릴·떨어질·관청·관직·직업·숫자·사물·현상 (이름으로 어색)
 ③ 오행: 상생 > 중립. 상극 절대 금지. 뜻이 더 좋으면 중립을 상생보다 우선 가능.
 
 [출력 형식] — 이름마다 반복:
@@ -876,9 +987,11 @@ _GENERATE_SYSTEM = """당신은 한국 작명 전문가 AI입니다.
 - 첫째 글자({한자1}) — {뜻}, {N}획 [{오행}]
 - 둘째 글자({한자2}) — {뜻}, {N}획 [{오행}]
 **오행 흐름**: 성씨({오행}) → 첫째({오행}) → 둘째({오행}) — {상생/중립}
-[sql_db 결과] 있으면 **수리**: 원격N격(吉/凶), 형격N격(吉/凶). 없으면 생략.
+수리(획수 합산)를 직접 계산하거나 출력하지 말 것. 수리는 시스템이 자동 삽입한다.
+[吉수 한자 획수 조건] 표시가 있으면 해당 획수 조합의 한자를 우선 선택.
+수리 후처리로 일부 이름이 제거될 수 있으니 요청보다 넉넉하게 생성하되, 응답 첫 줄에 생성 개수를 언급하지 마세요 — 이름 추천만 출력합니다.
 
-[논문: ...], [한자: ...], [출처: ...] 등 내부 태그 출력 금지. 답변은 한국어."""
+[논문: ...], [한자: ...], [출처: ...], [참고 정보], [검증된 한자 조합 후보], [吉수리 획수 힌트] 등 내부 태그·컨텍스트 출력 절대 금지. 이름 추천 결과만 출력. 답변은 한국어."""
 
 
 # ─────────────────────────────────────────────
@@ -909,10 +1022,21 @@ _VERIFY_SYSTEM_KOREAN = """순우리말 이름 추천 결과에서 이름으로 
 
 성씨가 함께 제공되면 성씨+이름 전체 조합도 검토하세요.
 
-부적절 기준:
-- 부정적·불길한 동음이의어: 다른 의미로 쓰일 때 부정적인 뜻이 되는 단어 (예: 아슬 → 아슬아슬)
-- 동사/형용사 어간: 이름 자체가 행동·상태 표현으로 읽히는 것 (예: 안다 → 안다/알다, 진다 → 지다)
-- 성씨+이름 합성 문제: 성씨와 이름을 붙였을 때 어색한 문장·속어·부정적 표현이 되는 경우
+[부적절 기준]
+
+1. 동음이의어 — 소리가 같거나 유사한 단어 중 부정적 의미가 일상에서 더 강하게 쓰이는 경우:
+   - 고통·불운: 나락(나락에 빠지다), 독(독약·독이 되다), 아픔, 눈물, 한(恨)
+   - 위험·불안: 아슬(아슬아슬), 벼랑, 날(날이 서다·칼날), 여진(지진의 여진)
+   - 불투명·소멸: 안개(앞이 안 보임), 재(재가 되다), 불(화재 연상)
+   - 단, 긍정 의미가 명확히 우세한 단어는 허용. 예: 별(희망), 달(풍요), 솔(소나무), 봄(계절)
+
+2. 동사·형용사 어간: 이름이 행동·상태 표현으로 읽히는 것
+   예: 안다(알다), 진다(지다), 빛나(빛나다), 깊다, 푸르다
+
+3. 성씨+이름 합성 문제: 붙였을 때 어색한 문장·속어·부정적 표현이 되는 경우
+   예: 성씨 "임" + 이름 "신" → "임신"
+
+판단 기준: 일반인이 이름을 들었을 때 부정적 연상이 먼저 떠오르면 부적합.
 
 출력 형식 (각 문제 한 줄):
 - 문제 없으면: 이상 없음
@@ -974,7 +1098,8 @@ def _repair_names_korean(
         SystemMessage(content=_REPAIR_SYSTEM_KOREAN),
         HumanMessage(content=repair_content),
     ])
-    return re.sub(r"<think>.*?</think>", "", resp.content, flags=re.DOTALL).strip()
+    raw = re.sub(r"<think>.*?</think>", "", resp.content, flags=re.DOTALL).strip()
+    return re.sub(r'^\[원본 추천 결과\]\s*\n?', '', raw).strip()
 
 
 def _find_same_reading_candidates(hangul: str, exclude_hanja: str) -> list[dict]:
@@ -1018,6 +1143,7 @@ def _repair_names(
         HumanMessage(content=repair_content),
     ])
     raw = re.sub(r"<think>.*?</think>", "", resp.content, flags=re.DOTALL).strip()
+    raw = re.sub(r'^\[원본 추천 결과\]\s*\n?', '', raw).strip()
     raw = _correct_strokes_in_output(raw)
     return _correct_ohaeng_in_output(raw)
 
@@ -1031,10 +1157,11 @@ _SOUND_GEN_SYSTEM = """이름 발음 후보(음절 조합)를 JSON 배열로만 
 [참고 정보]의 paper_col 논문 트렌드(최근 선호 음절·받침 패턴)와 성씨·성별을 반영하세요.
 성씨 발음과 이름 첫 글자 발음이 동일하면 안 됩니다.
 발음은 한글 1음절 단위로 분리합니다.
+첫 글자 발음이 중복되지 않도록 다양하게 생성하세요. 예: "지"가 이미 있으면 "지"로 시작하는 조합 추가 금지.
 
 출력 형식 (JSON 배열만, 다른 텍스트 절대 금지):
-2글자: [["서","연"],["지","아"],["하","은"],["유","나"],["소","율"],["채","원"],["지","우"],["나","은"]]
-1글자: [["서"],["하"],["윤"],["아"],["나"],["채"],["율"],["은"]]"""
+2글자 예시: [["서","연"],["지","아"],["하","은"],["유","나"],["소","율"],["채","원"],["나","은"],["예","린"],["민","서"],["아","름"],["보","라"],["다","은"],["혜","원"],["수","아"],["미","래"],["도","연"],["가","은"],["라","온"],["세","아"],["빛","나"]]
+1글자 예시: [["서"],["하"],["윤"],["아"],["나"],["채"],["율"],["은"],["린"],["빛"],["솔"],["결"],["별"],["봄"],["빈"],["담"],["다"]]"""
 
 
 def _get_hanja_for_sound(hangul: str, resource_ohaeng: str) -> list[dict]:
@@ -1064,7 +1191,7 @@ def _generate_sound_candidates(query: str, context: str, is_single: bool) -> lis
         HumanMessage(content=(
             f"[참고 정보]\n{context[:4000]}\n\n"
             f"[질문]\n{query}\n"
-            f"({size_hint} 이름 발음 후보 8~12개 생성)"
+            f"({size_hint} 이름 발음 후보 20~25개 생성. 첫 글자 발음이 다양하게 분산되도록 할 것)"
         )),
     ])
     raw = re.sub(r"<think>.*?</think>", "", resp.content, flags=re.DOTALL).strip()
@@ -1097,6 +1224,16 @@ def _build_verified_hanja_pool(
     if not surname_ohaeng:
         return ""
 
+    # 성씨 획수 조회 — 수리 사전 필터에서 정격/원격 계산에 사용
+    s_strokes = 0
+    if surname_info.get("hanja"):
+        try:
+            s_strokes = rag_server.get_hanja_strokes(surname_info["hanja"]) or 0
+        except Exception:
+            pass
+        if not s_strokes:
+            s_strokes = int(_SURNAME_OHAENG.get(surname_info.get("hanja", ""), {}).get("strokes", 0) or 0)
+
     try:
         rel1 = graph_server.get_ohaeng_relations(surname_ohaeng)
         m1 = re.search(r'상생\(GENERATES\):\s*([가-힣]+)', rel1)
@@ -1118,11 +1255,14 @@ def _build_verified_hanja_pool(
         )
 
     def sangsaeng_of(o: str) -> str:
-        """상생 체인에서 o의 다음 오행 (사전 계산 값 활용)."""
+        """상생 체인에서 o의 다음 오행. 체인에 없으면 전체 SANGSAENG_PAIRS에서 계산."""
         if o == surname_ohaeng:
             return sangsaeng1
         if o == sangsaeng1:
             return sangsaeng2
+        for (a, b) in _SANGSAENG_PAIRS:
+            if a == o:
+                return b
         return ""
 
     chain_desc = (
@@ -1132,7 +1272,7 @@ def _build_verified_hanja_pool(
     )
     lines = [
         f"[검증된 한자 조합 후보] 상생 체인: {chain_desc}",
-        "⚠️ 아래 조합만 사용. 후보 외 한자·상극 조합 절대 금지.\n",
+        "아래 조합만 사용. 후보 외 한자·상극 조합 절대 금지.\n",
     ]
     valid_count = 0
 
@@ -1159,7 +1299,16 @@ def _build_verified_hanja_pool(
                 continue
 
             # (첫째오행, 둘째오행) 쌍 열거 — 상극 쌍은 제외
-            first_ohaengs = [o for o in [sangsaeng1, surname_ohaeng] if o]
+            # 상생/중립(동일) 우선, 이후 비상극 중립 오행도 포함해 후보 풀 확대
+            _priority_o1 = [o for o in [sangsaeng1, surname_ohaeng] if o]
+            _all_o = ["목", "화", "토", "금", "수"]
+            _extra_o1 = [
+                o for o in _all_o
+                if o not in _priority_o1
+                and (surname_ohaeng, o) not in _SANGGEUK_PAIRS
+                and (o, surname_ohaeng) not in _SANGGEUK_PAIRS
+            ]
+            first_ohaengs = _priority_o1 + _extra_o1
             valid_pairs = []
 
             for o1 in first_ohaengs:
@@ -1175,23 +1324,44 @@ def _build_verified_hanja_pool(
                     if not pool2:
                         continue
                     rel = _pair_relation(o1, o2)
-                    valid_pairs.append((o1, o2, pool1[:2], pool2[:2], rel))
+                    valid_pairs.append((o1, o2, pool1[:3], pool2[:3], rel))
 
             if not valid_pairs:
                 continue
+
             valid_count += 1
 
             pair_lines = []
-            for o1, o2, p1, p2, rel in valid_pairs[:3]:
+            for o1, o2, p1, p2, rel in valid_pairs[:4]:
                 chars1 = " / ".join(fmt(m) for m in p1)
                 chars2 = " / ".join(fmt(m) for m in p2)
+                # 수리 품질 주석: 첫 번째 후보 쌍의 정격/원격을 계산해 LLM에 표시
+                suri_note = ""
+                if s_strokes and p1 and p2:
+                    good, bad = [], []
+                    for h1 in p1[:2]:
+                        st1 = int(h1.get("strokes") or 0)
+                        for h2 in p2[:2]:
+                            st2 = int(h2.get("strokes") or 0)
+                            if not st1 or not st2:
+                                continue
+                            wr = _suri_rating(st1 + st2)
+                            jr = _suri_rating(s_strokes + st1 + st2)
+                            label = f"{h1.get('hanja')}{h2.get('hanja')}→정격{s_strokes+st1+st2}{jr}"
+                            if jr not in _SURI_BAD and wr != "大凶":
+                                good.append(label)
+                            else:
+                                bad.append(label + "(凶)")
+                    parts = ["(O)" + g for g in good] + bad
+                    if parts:
+                        suri_note = " [수리힌트:" + ", ".join(parts[:3]) + "]"
                 pair_lines.append(
-                    f"  [{rel}: 성씨({surname_ohaeng})→첫째({o1})→둘째({o2})] "
+                    f"  [{rel}: 성씨({surname_ohaeng})→첫째({o1})→둘째({o2})]{suri_note} "
                     f"{sounds[0]}: {chars1} | {sounds[1]}: {chars2}"
                 )
             lines.append(f"• '{sounds[0]}{sounds[1]}':\n" + "\n".join(pair_lines))
 
-        if valid_count >= 8:
+        if valid_count >= 20:
             break
 
     if valid_count == 0:
@@ -1221,6 +1391,239 @@ def _get_sangsaeng_chain_hint(ohaeng: str, is_single: bool) -> str:
         return ""
 
 
+def _build_lucky_stroke_hint(context: str, query: str = "") -> str:
+    """吉수 역산 결과에서 상위 획수 조합에 해당하는 인명용 한자를 직접 추출합니다."""
+    m = re.search(r'\[吉수 조합 역산\][^\[]*', context, re.DOTALL)
+    if not m:
+        return ""
+    combos = re.findall(r'\((\d+)획,\s*(\d+)획\)', m.group())
+    if not combos:
+        return ""
+
+    ohaeng_filter = _extract_query_ohaeng(query) if query else ""
+
+    all_hanja = rag_server._load_person_name_hanja()
+    stroke_map: dict[int, list[dict]] = {}
+    for _, meta in all_hanja:
+        if not meta:
+            continue
+        s = meta.get("strokes", 0)
+        if not s:
+            continue
+        if ohaeng_filter and meta.get("resource_ohaeng", "") != ohaeng_filter:
+            continue
+        stroke_map.setdefault(s, []).append(meta)
+
+    def fmt(meta: dict) -> str:
+        return (
+            f"{meta.get('hanja')}({meta.get('hangul')}/{meta.get('sound_meaning','?')}) "
+            f"[{meta.get('resource_ohaeng','?')}오행,{meta.get('strokes')}획]"
+        )
+
+    lines = ["[吉수 획수별 인명용 한자 후보] — 아래 획수 조합 중 하나를 사용하세요."]
+    found = 0
+    for a_s, b_s in combos[:3]:
+        a, b = int(a_s), int(b_s)
+        pool_a = stroke_map.get(a, [])[:4]
+        pool_b = stroke_map.get(b, [])[:4]
+        if not pool_a or not pool_b:
+            continue
+        lines.append(f"• 첫째{a}획: " + " / ".join(fmt(x) for x in pool_a))
+        lines.append(f"  둘째{b}획: " + " / ".join(fmt(x) for x in pool_b))
+        found += 1
+
+    if found == 0:
+        return ""
+    lines.append("위 후보 한자와 획수 조합을 우선 사용하세요.")
+    return "\n".join(lines)
+
+
+def _suri_rating(n: int) -> str:
+    """81수리 번호(1~81)에 해당하는 등급 문자열을 반환합니다. 81 초과 시 순환."""
+    if n <= 0:
+        return "?"
+    idx = ((n - 1) % 81) + 1
+    return _SURI_RATINGS.get(idx, "?")
+
+
+_SURI_GOOD = {"吉", "大吉", "半吉"}
+
+
+def _compute_lucky_strokes(surname_hanja: str, name_len: int = 2) -> str:
+    """성씨 획수 기반으로 吉 수리 조합과 실제 인명용 한자 후보를 함께 반환합니다."""
+    s_strokes = rag_server.get_hanja_strokes(surname_hanja)
+    if not s_strokes:
+        s_strokes = int(_SURNAME_OHAENG.get(surname_hanja, {}).get("strokes", 0) or 0)
+    if not s_strokes or not _SURI_RATINGS:
+        return ""
+
+    # 인명용 한자 획수별 분류 (이름 발음·뜻 포함)
+    stroke_map: dict[int, list[str]] = {}
+    try:
+        all_hanja = rag_server._load_person_name_hanja()
+        for _, meta in all_hanja:
+            if not meta:
+                continue
+            st = int(meta.get("strokes") or 0)
+            if not st:
+                continue
+            desc = f"{meta.get('hanja')}({meta.get('hangul')}/{meta.get('sound_meaning','?')})"
+            stroke_map.setdefault(st, []).append(desc)
+    except Exception:
+        pass
+
+    combos: list[tuple[int, int, int]] = []  # (good_count, s1, s2)
+    for s1 in range(1, 25):
+        if name_len == 1:
+            won = s1
+            hyung = s_strokes + s1
+            g = sum(1 for v in [_suri_rating(won), _suri_rating(hyung)] if v in _SURI_GOOD)
+            if g >= 2 and stroke_map.get(s1):
+                combos.append((g, s1, 0))
+        else:
+            for s2 in range(1, 25):
+                won = s1 + s2
+                hyung = s_strokes + s1
+                ig = s_strokes + s2
+                jeong = s_strokes + s1 + s2
+                g = sum(1 for v in [_suri_rating(won), _suri_rating(hyung), _suri_rating(ig), _suri_rating(jeong)] if v in _SURI_GOOD)
+                # 4格 모두 吉계열인 조합만 (또는 3格 이상 吉 + 나머지 凶 아닌 경우)
+                bad = sum(1 for v in [_suri_rating(won), _suri_rating(hyung), _suri_rating(ig), _suri_rating(jeong)] if v in {"凶", "大凶"})
+                if g >= 3 and bad == 0 and stroke_map.get(s1) and stroke_map.get(s2):
+                    combos.append((g, s1, s2))
+
+    # 높은 吉格 수 우선, 같은 格 수이면 낮은 획수(인명에 더 일반적) 우선
+    combos.sort(key=lambda x: (-x[0], x[1], x[2]))
+    if not combos:
+        return ""
+
+    lines = []
+    seen_s1: set[int] = set()
+    count = 0
+    for g, s1, s2 in combos:
+        if count >= 8:
+            break
+        if s1 in seen_s1:
+            continue
+        seen_s1.add(s1)
+        cands1 = " / ".join(stroke_map.get(s1, [])[:4])
+        if name_len == 1:
+            lines.append(
+                f"  {s1}획 → 원격{s1}({_suri_rating(s1)}), 형격{s_strokes+s1}({_suri_rating(s_strokes+s1)}) | 후보: {cands1}"
+            )
+        else:
+            cands2 = " / ".join(stroke_map.get(s2, [])[:4])
+            lines.append(
+                f"  첫째{s1}획+둘째{s2}획 → 원격{s1+s2}({_suri_rating(s1+s2)}), "
+                f"형격{s_strokes+s1}({_suri_rating(s_strokes+s1)}), "
+                f"이격{s_strokes+s2}({_suri_rating(s_strokes+s2)}), "
+                f"정격{s_strokes+s1+s2}({_suri_rating(s_strokes+s1+s2)}) [{g}/4 吉]\n"
+                f"    첫째 후보: {cands1}\n"
+                f"    둘째 후보: {cands2}"
+            )
+        count += 1
+    return "\n".join(lines)
+
+
+def _inject_suri_into_output(text: str, surname_info: dict | None) -> str:
+    """LLM 출력의 획수 정보를 파싱하여 수리 4格을 계산·삽입합니다.
+    이미 [수리 계산 완료] 헤더로 주입된 경우에는 재계산하지 않습니다."""
+    if not surname_info or not surname_info.get("hanja"):
+        return text
+
+    surname_hanja = surname_info["hanja"]
+
+    # 성씨 획수: hanja_col → 없으면 _SURNAME_OHAENG → 없으면 건너뜀
+    s_strokes = rag_server.get_hanja_strokes(surname_hanja)
+    if not s_strokes:
+        s_strokes = int(_SURNAME_OHAENG.get(surname_hanja, {}).get("strokes", 0) or 0)
+    if not s_strokes:
+        return text
+
+    def _compute_and_replace(block: str) -> str:
+        # [수리 계산 완료] 블록이 있으면 이미 정확한 값 → 건드리지 않음
+        if "[수리 계산 완료]" in block:
+            return block
+
+        # 첫째/둘째 글자 획수 파싱
+        s1_m = re.search(r'첫째 글자\([^)]+\)[^,\n]+,\s*(\d+)획', block)
+        s2_m = re.search(r'둘째 글자\([^)]+\)[^,\n]+,\s*(\d+)획', block)
+        single_m = re.search(r'이름 글자\([^)]+\)[^,\n]+,\s*(\d+)획', block)
+
+        if single_m:
+            s1 = int(single_m.group(1))
+            won   = s1
+            hyung = s_strokes + s1
+            suri_line = f"**수리**: 원격{won}({_suri_rating(won)}), 형격{hyung}({_suri_rating(hyung)})"
+        elif s1_m and s2_m:
+            s1, s2 = int(s1_m.group(1)), int(s2_m.group(1))
+            won    = s1 + s2
+            hyung  = s_strokes + s1
+            i_geok = s_strokes + s2
+            jeong  = s_strokes + s1 + s2
+            suri_line = (
+                f"**수리**: 원격{won}({_suri_rating(won)}), "
+                f"형격{hyung}({_suri_rating(hyung)}), "
+                f"이격{i_geok}({_suri_rating(i_geok)}), "
+                f"정격{jeong}({_suri_rating(jeong)})"
+            )
+        else:
+            return block  # 획수 파싱 실패 → 원본 유지
+
+        # 기존 수리 라인 교체 or 오행 흐름 다음에 삽입
+        if re.search(r'\*\*수리\*\*:', block):
+            block = re.sub(r'\*\*수리\*\*:.*', suri_line, block)
+        else:
+            block = re.sub(
+                r'(\*\*오행 흐름\*\*:[^\n]+)',
+                r'\1\n' + suri_line,
+                block,
+            )
+        return block
+
+    # 이름 섹션(## [이름 N] ... 다음 ## 또는 끝) 단위로 처리
+    parts = re.split(r'(?=## \[이름 \d+\])', text)
+    return "".join(_compute_and_replace(p) if p.startswith("## [이름") else p for p in parts)
+
+
+_SURI_BAD = {"凶", "大凶"}
+
+
+def _filter_poor_suri_names(text: str) -> str:
+    """중요도 순서(형격>이격>원격>정격)에 따라 大凶 이름 블록을 제거합니다.
+    형격·이격·원격이 大凶이면 제거. 정격은 가장 먼저 포기하므로 필터 없음.
+    凶(비大凶)은 모든 格에서 허용 — 李씨 등 획수 제약이 있는 성씨 대응."""
+    parts = re.split(r'(?=## \[이름 \d+\])', text)
+    header = parts[0] if not parts[0].startswith("## [이름") else ""
+    blocks = [p for p in parts if p.startswith("## [이름")]
+
+    kept = []
+    for block in blocks:
+        suri_line = re.search(r'\*\*수리\*\*:(.+)', block)
+        if not suri_line:
+            kept.append(block)
+            continue
+        line = suri_line.group(1)
+        hyung_m = re.search(r'형격\d+\(([^)]+)\)', line)
+        i_m     = re.search(r'이격\d+\(([^)]+)\)', line)
+        won_m   = re.search(r'원격\d+\(([^)]+)\)', line)
+        hyung_r = hyung_m.group(1) if hyung_m else ""
+        i_r     = i_m.group(1)     if i_m     else ""
+        won_r   = won_m.group(1)   if won_m   else ""
+        # 형격·이격·원격 大凶만 탈락. 정격은 필터하지 않음.
+        if hyung_r == "大凶" or i_r == "大凶" or won_r == "大凶":
+            continue
+        kept.append(block)
+
+    # 이름 번호 재정렬
+    renumbered = []
+    for i, block in enumerate(kept, 1):
+        block = re.sub(r'^## \[이름 \d+\]', f'## [이름 {i}]', block)
+        renumbered.append(block)
+
+    return header + "".join(renumbered) if renumbered else text
+
+
 def generate_node(state: NamingState) -> NamingState:
     """수집된 context를 바탕으로 LLM이 최종 답변을 생성합니다."""
     query = state["query"]
@@ -1240,6 +1643,17 @@ def generate_node(state: NamingState) -> NamingState:
 
     # 성씨 한자 자동 해결
     surname_kr, surname_info = _resolve_surname(query)
+    # 성씨 한자 불명 시 fallback (1순위: 명시 오행 '성에 火오행', 2순위: SURNAME_OHAENG 사전)
+    if surname_kr and not surname_info:
+        explicit_oe = _extract_surname_ohaeng(query)
+        if explicit_oe:
+            surname_info = {"hanja": "", "resource_ohaeng": explicit_oe, "strokes": 0}
+    if surname_kr and not surname_info:
+        _gen_entries = [(k, v) for k, v in _SURNAME_OHAENG.items() if v.get("hangul") == surname_kr]
+        if len(_gen_entries) == 1:
+            _ghk, _gev = _gen_entries[0]
+            surname_info = {"hanja": _ghk, "resource_ohaeng": _gev.get("resource_ohaeng", ""), "strokes": 0}
+
     surname_context = ""
     if surname_kr and surname_info:
         hanja = surname_info["hanja"]
@@ -1249,15 +1663,17 @@ def generate_node(state: NamingState) -> NamingState:
             forbidden = _FORBIDDEN_NEXT.get(ohaeng, [])
             if forbidden:
                 forbidden_str = "·".join(forbidden)
-                ohaeng_rule = f"\n⛔ 이름 첫째 글자에 {forbidden_str}오행 한자 절대 금지 (성씨→첫째 상극)"
+                ohaeng_rule = f"\n[상극 금지] 이름 첫째 글자에 {forbidden_str}오행 한자 절대 금지 (성씨→첫째 상극)"
             else:
                 ohaeng_rule = ""
+            hanja_label = f"한자: {hanja} " if hanja else ""
             surname_context = (
-                f"[성씨 정보] {surname_kr}씨 한자: {hanja} (자원오행: {ohaeng})"
+                f"[성씨 정보] {surname_kr}씨 {hanja_label}(자원오행: {ohaeng})"
                 f"{chain_hint}{ohaeng_rule}\n\n"
             )
         elif ohaeng:
-            surname_context = f"[성씨 정보] {surname_kr}씨 한자: {hanja} (자원오행: {ohaeng})\n\n"
+            hanja_label = f"한자: {hanja} " if hanja else ""
+            surname_context = f"[성씨 정보] {surname_kr}씨 {hanja_label}(자원오행: {ohaeng})\n\n"
         else:
             surname_context = f"[성씨 정보] {surname_kr}씨 한자: {hanja} (오행 미상)\n\n"
 
@@ -1281,6 +1697,22 @@ def generate_node(state: NamingState) -> NamingState:
             if verified_pool:
                 context_with_surname = verified_pool + "\n\n" + context_with_surname
 
+    # 吉수 획수 조합이 있으면 획수별 인명용 한자 후보 주입 (Case 1 개선)
+    lucky_hint = _build_lucky_stroke_hint(state["context"], query)
+    if lucky_hint:
+        context_with_surname = lucky_hint + "\n\n" + context_with_surname
+    elif not is_korean and surname_info and surname_info.get("hanja"):
+        # sql_db 미호출 시에도 성씨 획수 기반 吉수 조합 자동 주입
+        auto_lucky = _compute_lucky_strokes(surname_info["hanja"], name_len=1 if is_single else 2)
+        if auto_lucky:
+            context_with_surname = (
+                f"[吉수리 획수 힌트 — {surname_info['hanja']}씨({rag_server.get_hanja_strokes(surname_info['hanja']) or int(_SURNAME_OHAENG.get(surname_info['hanja'], {}).get('strokes', 0))}획) 기준]\n"
+                f"아래 획수 조합을 우선 사용하면 수리 4格 중 3格 이상이 吉계열입니다:\n"
+                f"{auto_lucky}\n"
+                f"이름 한자 획수를 위 조합에 맞추되, 뜻이 아름다운 한자를 선택하세요.\n\n"
+                + context_with_surname
+            )
+
     human_content = f"[참고 정보]\n{context_with_surname}\n\n[질문]\n{query}"
 
     def _invoke(system: str) -> str:
@@ -1291,20 +1723,30 @@ def generate_node(state: NamingState) -> NamingState:
                 raw = resp.content.strip()
         except Exception as e:
             return f"[모델 오류: {e}]"
+        # LLM이 [참고 정보] 컨텍스트를 응답에 그대로 출력한 경우 제거
+        raw = re.sub(r'\n{0,2}\[참고 정보\].*$', '', raw, flags=re.DOTALL).strip()
         raw = _fix_broken_headers(raw)
-        # 헤더 괄호에서 성씨 한자 제거: (任瑜津) → (瑜津)
-        if surname_info:
+        # 순우리말 형식 교정: [이름 N] → ## [이름 N] (## 누락 시)
+        raw = re.sub(r'(?m)^(?!##)\[이름\s+(\d+)\]', r'## [이름 \1]', raw)
+        # 헤더 괄호에서 성씨 한자 제거: (任瑜津) → (瑜津) — 한자가 있을 때만
+        if surname_info and surname_info.get("hanja"):
             sh = re.escape(surname_info["hanja"])
             raw = re.sub(rf'\(({sh})([一-鿿]{{1,4}})\)', r'(\2)', raw)
         raw = _fix_hanja_headers(raw, surname_kr, surname_info)
         raw = _correct_strokes_in_output(raw)
         raw = _correct_ohaeng_in_output(raw)
+        # 수리 4格 후처리 계산 삽입 (LLM 허수 방지) + 정격/원격 凶인 이름 제거
+        if not is_korean:
+            raw = _inject_suri_into_output(raw, surname_info)
+            raw = _filter_poor_suri_names(raw)
         if surname_info and surname_info.get("resource_ohaeng"):
             raw = _repair_sanggeuk_names(raw, surname_info["resource_ohaeng"], context_with_surname, query)
         # 성씨 오행 미인식(resource_ohaeng 없음) 포함, 모든 경우에 상극 이름 제거
         if '— 상극' in raw:
             raw = _drop_sanggeuk_names(raw)
         raw = _drop_duplicate_sound_names(raw)
+        if not is_korean:
+            raw = _drop_duplicate_hanja_names(raw)
         raw = _drop_surname_sound_overlap(raw, surname_kr)
         return raw
 
@@ -1312,6 +1754,10 @@ def generate_node(state: NamingState) -> NamingState:
         issues = _verify_names(text)
         if issues:
             text = _repair_names(text, issues, system, context_with_surname, query)
+            # repair 이후 수리 재계산·필터 재적용 (LLM 재생성 시 hallucination 방지)
+            if not is_korean:
+                text = _inject_suri_into_output(text, surname_info)
+                text = _filter_poor_suri_names(text)
         return text
 
     def _verify_and_repair_korean(text: str) -> str:
@@ -1329,14 +1775,20 @@ def generate_node(state: NamingState) -> NamingState:
         return text
 
     if is_both:
-        hanja_raw = _invoke(_GENERATE_SYSTEM)
+        hanja_system = _GENERATE_SYSTEM_SINGLE if is_single else _GENERATE_SYSTEM
+        korean_system = _GENERATE_SYSTEM_KOREAN_SINGLE if is_single else _GENERATE_SYSTEM_KOREAN
+        hanja_raw = _invoke(hanja_system)
         hanja_clean = re.sub(r'\s*-{3,}\s*⚠️.*$', '', hanja_raw, flags=re.DOTALL).strip()
-        hanja_clean = _post_repair(_verify_and_repair(hanja_clean, _GENERATE_SYSTEM))
-        korean_raw = _invoke(_GENERATE_SYSTEM_KOREAN)
+        hanja_clean = _post_repair(_verify_and_repair(hanja_clean, hanja_system))
+        korean_raw = _invoke(korean_system)
         korean_raw = _verify_and_repair_korean(korean_raw)
+        korean_raw = _drop_duplicate_sound_names(korean_raw)
+        korean_raw = _drop_surname_sound_overlap(korean_raw, surname_kr)
         answer = f"## 한자 이름\n\n{hanja_clean}\n\n## 순우리말 이름\n\n{korean_raw}"
     else:
-        if is_korean:
+        if is_korean and is_single:
+            system = _GENERATE_SYSTEM_KOREAN_SINGLE
+        elif is_korean:
             system = _GENERATE_SYSTEM_KOREAN
         elif is_single:
             system = _GENERATE_SYSTEM_SINGLE
@@ -1346,8 +1798,21 @@ def generate_node(state: NamingState) -> NamingState:
         answer = _invoke(system)
         if is_korean:
             answer = _verify_and_repair_korean(answer)
+            answer = _drop_duplicate_sound_names(answer)
+            answer = _drop_surname_sound_overlap(answer, surname_kr)
         else:
             answer = _post_repair(_verify_and_repair(answer, system))
+
+    # 요청 개수보다 부족한 경우 안내 메시지 삽입
+    _req_m = re.search(r'(\d+)\s*개', query)
+    if _req_m:
+        _requested = int(_req_m.group(1))
+        _actual = len(re.findall(r'## \[이름 \d+\]', answer))
+        if 0 < _actual < _requested:
+            answer = (
+                f"요청하신 {_requested}개 중 수리·오행 조건에 부합하는 이름 {_actual}개를 추천드립니다.\n\n"
+                + answer
+            )
 
     disclaimer = "\n\n---\n\n⚠️ 면책 고지: 추천 이름의 출생신고 가능 여부를 100% 보장하지 않습니다. 최종 확인은 관할 기관을 통해 진행하세요."
     if "면책 고지" not in answer:

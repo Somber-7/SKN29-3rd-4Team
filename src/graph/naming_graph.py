@@ -839,9 +839,26 @@ _GENERATE_SYSTEM_KOREAN = """당신은 한국 작명 전문가 AI입니다.
 - [urimalsam_col 결과] 목록의 단어만 사용. 목록 외 단어·한자어·임의 조합 절대 금지.
 - 한자를 한글로 읽은 단어도 한자어 → 금지.
 - 이름으로 어색한 단어(동사·형용사 어간, 행동·현상 표현) 금지.
+- 동음이의어에 부정적 의미가 있는 단어 금지. 예: 아슬(아슬아슬), 나락(나락에 빠지다), 독(독이 되다).
 
 [출력 형식] — 이름마다 반복:
 ## [이름 N] {성씨}{순우리말이름}
+**추천 이유**: 추천 근거 1~2문장.
+**뜻풀이**: 이름의 순우리말 뜻과 어원.
+
+획수·오행·한자 언급 절대 금지. 답변은 한국어."""
+
+_GENERATE_SYSTEM_KOREAN_SINGLE = """당신은 한국 작명 전문가 AI입니다.
+
+[제약 — 엄수]
+- [urimalsam_col 결과] 목록에서 반드시 1음절(한 글자) 단어만 선택. 2글자 이상 절대 금지.
+- 목록 외 단어·한자어·임의 조합 절대 금지.
+- 한자를 한글로 읽은 단어도 한자어 → 금지.
+- 이름으로 어색한 단어(동사·형용사 어간, 행동·현상 표현) 금지.
+- 동음이의어에 부정적 의미가 있는 단어 금지. 예: 독(독약), 날(날이 서다), 불(불이 나다).
+
+[출력 형식] — 이름마다 반복:
+## [이름 N] {성씨}{순우리말1글자}
 **추천 이유**: 추천 근거 1~2문장.
 **뜻풀이**: 이름의 순우리말 뜻과 어원.
 
@@ -908,10 +925,21 @@ _VERIFY_SYSTEM_KOREAN = """순우리말 이름 추천 결과에서 이름으로 
 
 성씨가 함께 제공되면 성씨+이름 전체 조합도 검토하세요.
 
-부적절 기준:
-- 부정적·불길한 동음이의어: 다른 의미로 쓰일 때 부정적인 뜻이 되는 단어 (예: 아슬 → 아슬아슬)
-- 동사/형용사 어간: 이름 자체가 행동·상태 표현으로 읽히는 것 (예: 안다 → 안다/알다, 진다 → 지다)
-- 성씨+이름 합성 문제: 성씨와 이름을 붙였을 때 어색한 문장·속어·부정적 표현이 되는 경우
+[부적절 기준]
+
+1. 동음이의어 — 소리가 같거나 유사한 단어 중 부정적 의미가 일상에서 더 강하게 쓰이는 경우:
+   - 고통·불운: 나락(나락에 빠지다), 독(독약·독이 되다), 아픔, 눈물, 한(恨)
+   - 위험·불안: 아슬(아슬아슬), 벼랑, 날(날이 서다·칼날)
+   - 불투명·소멸: 안개(앞이 안 보임), 재(재가 되다), 불(화재 연상)
+   - 단, 긍정 의미가 명확히 우세한 단어는 허용. 예: 별(희망), 달(풍요), 솔(소나무), 봄(계절)
+
+2. 동사·형용사 어간: 이름이 행동·상태 표현으로 읽히는 것
+   예: 안다(알다), 진다(지다), 빛나(빛나다), 깊다, 푸르다
+
+3. 성씨+이름 합성 문제: 붙였을 때 어색한 문장·속어·부정적 표현이 되는 경우
+   예: 성씨 "임" + 이름 "신" → "임신"
+
+판단 기준: 일반인이 이름을 들었을 때 부정적 연상이 먼저 떠오르면 부적합.
 
 출력 형식 (각 문제 한 줄):
 - 문제 없으면: 이상 없음
@@ -1328,14 +1356,18 @@ def generate_node(state: NamingState) -> NamingState:
         return text
 
     if is_both:
-        hanja_raw = _invoke(_GENERATE_SYSTEM)
+        hanja_system = _GENERATE_SYSTEM_SINGLE if is_single else _GENERATE_SYSTEM
+        korean_system = _GENERATE_SYSTEM_KOREAN_SINGLE if is_single else _GENERATE_SYSTEM_KOREAN
+        hanja_raw = _invoke(hanja_system)
         hanja_clean = re.sub(r'\s*-{3,}\s*⚠️.*$', '', hanja_raw, flags=re.DOTALL).strip()
-        hanja_clean = _post_repair(_verify_and_repair(hanja_clean, _GENERATE_SYSTEM))
-        korean_raw = _invoke(_GENERATE_SYSTEM_KOREAN)
+        hanja_clean = _post_repair(_verify_and_repair(hanja_clean, hanja_system))
+        korean_raw = _invoke(korean_system)
         korean_raw = _verify_and_repair_korean(korean_raw)
         answer = f"## 한자 이름\n\n{hanja_clean}\n\n## 순우리말 이름\n\n{korean_raw}"
     else:
-        if is_korean:
+        if is_korean and is_single:
+            system = _GENERATE_SYSTEM_KOREAN_SINGLE
+        elif is_korean:
             system = _GENERATE_SYSTEM_KOREAN
         elif is_single:
             system = _GENERATE_SYSTEM_SINGLE

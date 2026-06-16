@@ -143,6 +143,58 @@ def get_hanja_ohaeng(hanja_char: str) -> str:
     return ""
 
 
+@functools.lru_cache(maxsize=1)
+def _load_urimalsam() -> list:
+    """순우리말 이름 전체를 메모리에 캐싱합니다."""
+    col = _get_collection("urimalsam_col")
+    if col is None:
+        return []
+    results = col.get(include=["documents", "metadatas"])
+    return list(zip(results["documents"], results["metadatas"]))
+
+
+_FEMALE_GENDER_KW = {"여자아이", "여아", "딸", "여자", "여자이름"}
+_MALE_GENDER_KW   = {"남자아이", "남아", "아들", "남자", "남자이름"}
+
+def sample_urimalsam(query: str, n_results: int = 30) -> str:
+    """순우리말 이름을 메모리 캐시에서 랜덤 샘플링합니다.
+
+    이름 추천 전용. 시맨틱 검색 대신 성별 필터 + 랜덤 샘플을 사용해
+    매 요청마다 다양한 이름 후보를 제공합니다.
+    """
+    all_names = _load_urimalsam()
+
+    is_female = any(kw in query for kw in _FEMALE_GENDER_KW)
+    is_male   = any(kw in query for kw in _MALE_GENDER_KW)
+
+    if is_female:
+        pool = [(doc, meta) for doc, meta in all_names
+                if "남자에게" not in (meta or {}).get("gender", "")]
+        filter_info = " [성별 필터: 여아 위주]"
+    elif is_male:
+        pool = [(doc, meta) for doc, meta in all_names
+                if "여자에게" not in (meta or {}).get("gender", "")]
+        filter_info = " [성별 필터: 남아 위주]"
+    else:
+        pool = all_names
+        filter_info = ""
+
+    if not pool:
+        pool = all_names
+
+    sampled = random.sample(pool, min(n_results, len(pool)))
+
+    lines = [
+        f"[urimalsam_col 결과] {len(sampled)}건 랜덤 샘플"
+        f" (전체 {len(pool)}건 중){filter_info}\n"
+        f"아래 목록의 단어만 이름으로 사용하세요. 목록에 없는 단어 절대 금지.\n"
+    ]
+    for _, meta in sampled:
+        m = meta or {}
+        lines.append(f"- {m.get('name','')} | 뜻: {m.get('meaning','')}")
+    return "\n".join(lines)
+
+
 def sample_hanja(query: str, n_results: int = 20) -> str:
     """인명용 한자를 메모리 캐시에서 샘플링합니다.
 

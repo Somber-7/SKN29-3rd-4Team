@@ -686,6 +686,11 @@ def internal_rag_node(state: NamingState) -> NamingState:
                 ))
             else:
                 results.append(rag_server.sample_hanja(query, n_results=n_results))
+        elif col == "urimalsam_col" and is_name_query:
+            count_match = re.search(r'(\d+)\s*개', query)
+            req_count = int(count_match.group(1)) if count_match else 3
+            n_results = min(max(30, req_count * 6), 60)
+            results.append(rag_server.sample_urimalsam(query, n_results=n_results))
         else:
             results.append(rag_server.search_rag(query, col))
 

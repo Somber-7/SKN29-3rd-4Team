@@ -21,20 +21,11 @@ LLM이 hallucination(근거 없는 답변)을 생성하거나, 단순히 "모른
 | 학술 근거 | 없음 — LLM 자체 지식에 의존 | 논문 3건(266청크) 기반 실제 출처 제공 |
 | 통계표 활용 | 불가 | `chunk_type: table` 필터로 표 데이터 직접 검색 |
 | 출처 인용 형식 | `[한자: ...]`, `[법령: ...]` 2종 | `[논문: 제목(연도)]` 추가로 3종 체계 완성 |
-| 컬렉션 수 | 5개 | 7개 (trend_col 포함) |
-
-### 한계 — 아직 미완
-
-- `naming_graph.py` 키워드 분기에 `paper_col` 미연결 → LLM 라우터가 자동으로 논문 검색을 선택하지 못함
-- `trend_col` 내용·문서 수 미확정 — 담당자 스펙 전달 필요
-- 논문 3건이 모두 동일 임베딩 공간(jhgan/ko-sroberta-multitask)에 적재되어 있어, 도메인 커버리지는 논문 선정 품질에 의존
+| 컬렉션 수 | 5개 | 6개 |
 
 ### 결론
 
-**"나아졌는가"**: 예, 단 조건부.
-`rag_server.py` 수준에서는 검색·출력·출처 태그 파이프라인이 완성되어 즉시 사용 가능합니다.
-그러나 `naming_graph.py` 키워드 연결이 완료되기 전까지 실제 QA 흐름에서 자동 호출되지 않습니다.
-파이프라인 작업 시 `paper_col` 키워드 분기를 추가하는 것으로 개선 효과가 실질적으로 발현됩니다.
+`rag_server.py` 검색·출력·출처 태그 파이프라인 완성. `naming_graph.py` 연결 완료 — 이름 추천 요청 시 `paper_col`이 자동 포함됩니다. `trend_col`은 `paper_col`에 통합 완료.
 
 ---
 
@@ -88,17 +79,18 @@ generate_node
 
 ### 3-1. 컬렉션 선택 로직
 
-질문 문자열에서 키워드를 감지해 검색 대상 컬렉션을 결정합니다.
-복합 질문은 여러 컬렉션을 동시에 검색하고 결과를 모두 누적합니다.
+LLM 라우터(`llm_router_node`)가 JSON으로 `collections` 배열을 반환하면, `internal_rag_node`가 `state["collections"]`를 읽어 해당 컬렉션만 검색합니다. 키워드 기반 분기는 사용하지 않습니다.
 
-| 감지 키워드 | 검색 컬렉션 |
-|---|---|
-| `수리`, `4격`, `원격`, `형격`, `이격`, `정격`, `운세` | `suri_col` |
-| `오행`, `상생`, `상극`, `木`, `火`, `土`, `金`, `水` | `ohaeng_col` |
-| `한자`, `획수`, `뜻`, `음`, `독음`, `추천` | `hanja_col` |
-| `법령`, `조항`, `조문`, `출생신고`, `인명용` | `law_col` |
-| `순우리말`, `우리말`, `이름 뜻`, `이름 추천` | `urimalsam_col` |
-| 위 키워드 없음 (기본값) | `hanja_col` |
+```python
+collections = list(state.get("collections") or ["hanja_col"])  # 폴백: hanja_col
+```
+
+이름 추천 요청(`이름`, `추천`, `작명`, `짓`, `씨` 키워드 포함)인 경우 `paper_col`을 자동으로 추가합니다.
+
+```python
+if is_name_query and "paper_col" not in collections:
+    collections = ["paper_col"] + collections
+```
 
 ### 3-2. 상태(State) 갱신 항목
 
@@ -106,7 +98,8 @@ generate_node
 return {
     **state,
     "context"    : 기존 context + "\n\n[internal_rag 결과]\n" + "\n\n".join(results),
-    "next_action": "generate",       # llm_router가 덮어쓰므로 실질적으로 무의미 (→ 6절 제약 참조)
+    "next_action": "llm_router",     # ReAct 루프 — llm_router로 복귀해 추가 Tool 여부 재판단
+    "collections": [],               # 컬렉션 초기화 (다음 라우터 호출을 위해)
     "used_tools" : state.get("used_tools", []) + ["internal_rag"],
 }
 ```
@@ -145,7 +138,6 @@ ChromaDB PersistentClient  →  data/chroma/  (SQLite 기반 벡터 DB)
 | `hanja_col` | 한자별 뜻·획수·오행·인명용 여부 | 2,420건 |
 | `law_col` | 가족관계등록법·대법원규칙 조문 | 248건 |
 | `urimalsam_col` | 순우리말 이름 | 301건 |
-| `trend_col` | 이름 트렌드 관련 데이터 | (인덱싱 진행 중) |
 | `paper_col` | 작명 관련 학술 논문 (본문 + 통계표) | 266건 (표 37 + 본문 229) |
 
 ### 4-3. `_parse_hanja_conditions()` — 조건 파싱 (`hanja_col` 전용)
@@ -208,7 +200,7 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str
 |---|---|
 | `query` | 검색 질문 (자연어 그대로) |
 | `collection` | 검색 대상 컬렉션 이름 |
-| `n_results` | 반환 문서 수 (기본 5, 최대 10) |
+| `n_results` | 반환 문서 수 (기본 5, 최대 30) |
 
 **처리 단계**
 
@@ -313,18 +305,7 @@ ChromaDB에 실제로 생성된 컬렉션 목록과 각 문서 수를 반환합�
 
 ---
 
-## 6. 제약 사항 및 미적용 항목
-
-| 항목 | 내용 | 사유 |
-|---|---|---|
-| `src/graph/naming_graph.py` 수정 | tool 노드 내 `"next_action": "generate"` 설정 — 무의미하나 동작에 영향 없음 | `src/graph/` 수정 금지 제약 |
-| `graph_db_node` 연결 | `graph_server.py` 완성됨 — `naming_graph.py` 연결 작업 미완료 | `src/graph/` 수정 금지 제약 (담당자 작업 필요) |
-| `urimalsam_col` 포맷 | 범용 포맷 적용 중 (hanja_col 전용 구조화 포맷 없음) | 메타데이터 스키마 미확정 |
-| `paper_col` → `naming_graph.py` 연결 | `internal_rag_node` 키워드 분기에 `paper_col` 미등록 | `src/graph/` 수정 금지 — 파이프라인 작업 시 담당자 추가 예정 |
-
----
-
-## 7. 관련 파일 경로
+## 6. 관련 파일 경로
 
 | 파일 | 경로 |
 |---|---|

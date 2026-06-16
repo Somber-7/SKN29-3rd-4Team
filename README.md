@@ -7,8 +7,6 @@
 
 ## 팀 소개
 
-> 캐릭터 이미지 파일: `docs/assets/char_임준.png` / `char_최지용.png` / `char_윤대성.png` / `char_이지현.png`
-
 <table>
   <thead>
     <tr>
@@ -22,10 +20,10 @@
   <tbody>
     <tr>
       <td align="center"><b>캐릭터</b></td>
-      <td align="center"><img src="docs/assets/char_임준.png" width="150"/></td>
-      <td align="center"><img src="docs/assets/char_최지용.png" width="150"/></td>
-      <td align="center"><img src="docs/assets/char_윤대성.png" width="150"/></td>
-      <td align="center"><img src="docs/assets/char_이지현.png" width="150"/></td>
+      <td align="center"><img src="docs/assets/char_임준.png" width="150" height="150" style="object-fit:cover;"/></td>
+      <td align="center"><img src="docs/assets/char_최지용.png" width="150" height="150" style="object-fit:cover;"/></td>
+      <td align="center"><img src="docs/assets/char_윤대성.png" width="150" height="150" style="object-fit:cover;"/></td>
+      <td align="center"><img src="docs/assets/char_이지현.png" width="150" height="150" style="object-fit:cover;"/></td>
     </tr>
     <tr>
       <td align="center"><b>역할</b></td>
@@ -65,7 +63,7 @@
 | 대주제 | LLM을 연동한 내외부 문서 기반 질의응답 시스템 |
 | 도메인 | 작명 / 법령 (인명용 한자 규정, 가족관계등록법) |
 | 핵심 기술 | LangGraph · FastMCP · ChromaDB · Neo4j · OpenAI API |
-| LLM | gpt-4o-mini (파인튜닝 예정) |
+| LLM | gpt-5.4-mini |
 | 임베딩 | jhgan/ko-sroberta-multitask (로컬) |
 
 ---
@@ -118,7 +116,6 @@ rag_server · db_server · law_server · graph_server
 | `law_col` | 248건 | 가족관계등록법 / 인명용 한자 규정 |
 | `urimalsam_col` | 301건 | 순우리말 이름 (baby-name.kr 크롤링) |
 | `paper_col` | 266건 | 작명 관련 학술 논문 (본문 229건 + 통계표 37건) |
-| `trend_col` | 인덱싱 중 | 연도별 출생신고 이름 빈도 통계 |
 
 > 검색 시 `hanja_col`은 획수·오행 조건 필터를 자동 적용하며, `paper_col`은 쿼리에 "표"/"통계" 포함 시 통계표 청크 우선 검색.
 
@@ -178,6 +175,7 @@ rag_server · db_server · law_server · graph_server
 | 81수리 운세 / 오행 조합 운세 | 직접 구조화 | JSON | 수집 완료 |
 | 출생신고 이름 빈도 통계 (2016~2026) | 법원행정처 공공데이터 | XLS | 수집 완료 |
 | 작명 관련 학술 논문 | 논문 PDF 전처리 | PDF→JSON | 수집 완료 (266청크) |
+| 한자 확장 후보군 6,564건 | hanja.pdf 원본 + Unihan/기존 한자 기준 교차검증 | JSON | 후보군 정리 완료 |
 
 > API 키: `OPENAI_API_KEY` · `LAW_API_KEY` · `URIMALSAM_API_KEY` 발급 완료
 
@@ -193,13 +191,14 @@ SKN29-3rd-4Team/
 │   │   ├── pdf/               # 법령·논문 원본 PDF
 │   │   └── reference/         # peoplehanja.json / 81suri.json / yinyang.json
 │   │                          # johab.json / 2016_2026상위_출생신고_이름_현황.xls
-│   ├── processed/             # 전처리 완료 JSON
-│   │   ├── hanja_documents.json
-│   │   ├── suri_documents.json
-│   │   ├── ohaeng_documents.json
-│   │   ├── law_articles.json
-│   │   ├── urimalsam_names.json
-│   │   └── unihan_mapping/
+│   ├── processed/                         # 전처리 완료 데이터
+│   │   ├── hanja_documents.json           # 확정 한자 메인 데이터. 인명용 한자 2,420건의 음/뜻/획수/발음오행/자원오행 메타데이터
+│   │   ├── hanja2_candidate_documents.json # hanja.pdf 기준 메인 한자에 없는 확장 후보군 6,564건. 아직 확정 데이터가 아닌 후보 데이터
+│   │   ├── suri_documents.json            # 수리 데이터. 획수 기반 길흉/수리 해석을 RAG 문서 형식으로 정리한 데이터
+│   │   ├── ohaeng_documents.json          # 오행 데이터. 목/화/토/금/수 및 상생/상극 등 오행 해석 문서 데이터
+│   │   ├── law_articles.json              # 법령/규정 관련 문서 데이터. 작명 또는 이름 사용 기준 검토용 법령 조항
+│   │   ├── urimalsam_names.json           # 우리말샘 기반 이름/단어 관련 데이터. 한글 이름 의미 보조 검토용
+│   │   └── unihan_mapping/                # 유니한/유니코드 매핑 처리 산출물. 한자 코드포인트, 획수, 음 등 매핑 참고 데이터
 │   └── chroma/                # ChromaDB PersistentClient 저장소
 ├── src/
 │   ├── graph/                 # LangGraph StateGraph (ReAct)
@@ -228,13 +227,13 @@ SKN29-3rd-4Team/
 | 3단계 | ChromaDB 인덱싱 (6컬렉션) | ✅ 완료 |
 | 3단계 | Neo4j 스키마 설계 및 인덱싱 | 🔄 진행 중 |
 | 4단계 | LangGraph StateGraph 기본 구조 + 4방향 Router | ✅ 완료 |
-| 4단계 | `graph_db_node` → `graph_server.py` 연결 | ⬜ 예정 |
-| 4단계 | ReAct 루프 (다중 의도 질의 처리) | ⬜ 예정 |
-| 4단계 | 출처 라벨 + 면책 고지 답변 형식 | ⬜ 예정 |
+| 4단계 | `graph_db_node` → `graph_server.py` 연결 | ✅ 완료 |
+| 4단계 | ReAct 루프 (다중 의도 질의 처리) | ✅ 완료 |
+| 4단계 | 면책 고지 답변 형식 | ✅ 완료 |
 | 5단계 | MCP 서버 4종 · 16개 도구 구현 | ✅ 완료 |
-| 6단계 | LLM 답변 생성 (gpt-4o-mini) | 🔄 진행 중 |
-| 7단계 | gpt-4o-mini 파인튜닝 (CoT QA 데이터셋) | ⬜ 예정 |
-| 평가 | Ground Truth QA 30~50개 + LLM-as-a-Judge | ⬜ 예정 |
+| 6단계 | LLM 답변 생성 (gpt-5.4-mini) | ✅ 완료 |
+| 7단계 | Qwen3.5:4b QLoRA 파인튜닝 (평가항목용) | 🔄 진행 중 |
+| 평가 | Ground Truth QA 30~50개 + LLM-as-a-Judge | ✅ 완료 |
 
 ---
 
@@ -263,4 +262,4 @@ cp .env.example .env
 
 ---
 
-> 최종 업데이트: 2026-06-14
+> 최종 업데이트: 2026-06-16

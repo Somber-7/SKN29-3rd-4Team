@@ -195,4 +195,4 @@ BELONGS_TO = 2420 * 2 = 4840
 4. Neo4j에서 관계 기반 결과를 조회한다.
 5. 최종 답변 생성 단계에서 출처 라벨과 면책 문구를 포함한다.
 
-이 문서 기준으로 보면 `graph_server.py` 구현과 Neo4j 조회 도구 준비는 완료되었고, 남은 작업은 LangGraph 노드 연결과 최종 답변 형식 정리이다.
+이 문서 기준으로 보면 `graph_server.py` 구현과 Neo4j 조회 도구 준비는 완료되었다. `naming_graph.py`의 `graph_db_node` LangGraph 연결 및 최종 답변 형식 정리도 완료되었다 (2026-06-16).

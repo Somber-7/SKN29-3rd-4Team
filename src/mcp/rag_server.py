@@ -156,11 +156,12 @@ def _load_urimalsam() -> list:
 _FEMALE_GENDER_KW = {"여자아이", "여아", "딸", "여자", "여자이름"}
 _MALE_GENDER_KW   = {"남자아이", "남아", "아들", "남자", "남자이름"}
 
-def sample_urimalsam(query: str, n_results: int = 30) -> str:
+def sample_urimalsam(query: str, n_results: int = 30, single_only: bool = False) -> str:
     """순우리말 이름을 메모리 캐시에서 랜덤 샘플링합니다.
 
     이름 추천 전용. 시맨틱 검색 대신 성별 필터 + 랜덤 샘플을 사용해
     매 요청마다 다양한 이름 후보를 제공합니다.
+    single_only=True 이면 1음절 단어만 샘플링합니다 (외자 요청 시).
     """
     all_names = _load_urimalsam()
 
@@ -181,6 +182,13 @@ def sample_urimalsam(query: str, n_results: int = 30) -> str:
 
     if not pool:
         pool = all_names
+
+    if single_only:
+        single_pool = [(doc, meta) for doc, meta in pool
+                       if len((meta or {}).get("name", doc)) == 1]
+        if single_pool:
+            pool = single_pool
+            filter_info += " [외자 필터: 1음절]"
 
     sampled = random.sample(pool, min(n_results, len(pool)))
 

@@ -544,7 +544,7 @@ def llm_router_node(state: NamingState) -> NamingState:
         query = state["query"]
         surname_kr, surname_info = _resolve_surname(query)
         is_pure_korean = any(kw in query for kw in _KOREAN_NAME_KW) and "한자" not in query
-        is_name_req = any(kw in query for kw in {"이름", "추천", "작명", "짓"})
+        is_name_req = any(kw in query for kw in {"추천", "작명", "짓"})
         if surname_kr and not surname_info and not is_pure_korean and is_name_req:
             return {**state, "next_action": "clarify", "iterations": 1}
 
@@ -690,7 +690,8 @@ def internal_rag_node(state: NamingState) -> NamingState:
             count_match = re.search(r'(\d+)\s*개', query)
             req_count = int(count_match.group(1)) if count_match else 3
             n_results = min(max(30, req_count * 6), 60)
-            results.append(rag_server.sample_urimalsam(query, n_results=n_results))
+            is_single_req = any(kw in query for kw in _SINGLE_KW)
+            results.append(rag_server.sample_urimalsam(query, n_results=n_results, single_only=is_single_req))
         else:
             results.append(rag_server.search_rag(query, col))
 
@@ -1371,6 +1372,7 @@ def generate_node(state: NamingState) -> NamingState:
         korean_raw = _invoke(korean_system)
         korean_raw = _verify_and_repair_korean(korean_raw)
         korean_raw = _drop_duplicate_sound_names(korean_raw)
+        korean_raw = _drop_surname_sound_overlap(korean_raw, surname_kr)
         answer = f"## 한자 이름\n\n{hanja_clean}\n\n## 순우리말 이름\n\n{korean_raw}"
     else:
         if is_korean and is_single:
@@ -1386,6 +1388,7 @@ def generate_node(state: NamingState) -> NamingState:
         if is_korean:
             answer = _verify_and_repair_korean(answer)
             answer = _drop_duplicate_sound_names(answer)
+            answer = _drop_surname_sound_overlap(answer, surname_kr)
         else:
             answer = _post_repair(_verify_and_repair(answer, system))
 

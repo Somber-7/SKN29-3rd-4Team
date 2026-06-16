@@ -1319,6 +1319,8 @@ def generate_node(state: NamingState) -> NamingState:
         except Exception as e:
             return f"[모델 오류: {e}]"
         raw = _fix_broken_headers(raw)
+        # 순우리말 형식 교정: [이름 N] → ## [이름 N] (## 누락 시)
+        raw = re.sub(r'(?m)^(?!##)\[이름\s+(\d+)\]', r'## [이름 \1]', raw)
         # 헤더 괄호에서 성씨 한자 제거: (任瑜津) → (瑜津)
         if surname_info:
             sh = re.escape(surname_info["hanja"])
@@ -1363,6 +1365,7 @@ def generate_node(state: NamingState) -> NamingState:
         hanja_clean = _post_repair(_verify_and_repair(hanja_clean, hanja_system))
         korean_raw = _invoke(korean_system)
         korean_raw = _verify_and_repair_korean(korean_raw)
+        korean_raw = _drop_duplicate_sound_names(korean_raw)
         answer = f"## 한자 이름\n\n{hanja_clean}\n\n## 순우리말 이름\n\n{korean_raw}"
     else:
         if is_korean and is_single:
@@ -1377,6 +1380,7 @@ def generate_node(state: NamingState) -> NamingState:
         answer = _invoke(system)
         if is_korean:
             answer = _verify_and_repair_korean(answer)
+            answer = _drop_duplicate_sound_names(answer)
         else:
             answer = _post_repair(_verify_and_repair(answer, system))
 

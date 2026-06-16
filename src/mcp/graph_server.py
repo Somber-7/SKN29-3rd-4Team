@@ -557,6 +557,55 @@ def get_ohaeng_relations(element: str) -> str:
     )
 
 
+def get_hanja_by_sound_and_ohaeng(hangul: str, resource_ohaeng: str, limit: int = 5) -> list[dict]:
+    """발음 + 자원오행으로 인명용 한자를 Neo4j에서 조회합니다 (PERMITTED_BY 검증됨).
+    MCP tool이 아닌 내부 호출 전용 함수입니다."""
+    query = """
+    MATCH (h:Hanja {dataset: $dataset, hangul: $hangul, resource_ohaeng: $ohaeng})
+          -[:PERMITTED_BY]->(:Law {dataset: $dataset})
+    RETURN h.hanja AS hanja,
+           h.hangul AS hangul,
+           h.sound_meaning AS sound_meaning,
+           h.strokes AS strokes,
+           h.resource_ohaeng AS resource_ohaeng,
+           h.sound_ohaeng AS sound_ohaeng
+    ORDER BY h.profile_id
+    LIMIT $limit
+    """
+    try:
+        return _run_read(query, {
+            "dataset": DATASET,
+            "hangul": hangul.strip(),
+            "ohaeng": resource_ohaeng.strip(),
+            "limit": _safe_limit(limit, default=5, maximum=20),
+        })
+    except Exception:
+        return []
+
+
+def get_ohaeng_pairs() -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    """Neo4j GENERATES/CONTROLS 엣지에서 상생/상극 쌍을 로드합니다.
+    반환: (sangsaeng_set, sanggeuk_set) 각각 (a, b) 쌍 집합."""
+    sangsaeng: set[tuple[str, str]] = set()
+    sanggeuk: set[tuple[str, str]] = set()
+    query = """
+    MATCH (a:Category:Ohaeng {dataset: $dataset})-[r]->(b:Category:Ohaeng {dataset: $dataset})
+    WHERE type(r) IN ['GENERATES', 'CONTROLS']
+    RETURN a.name AS src, type(r) AS rel, b.name AS dst
+    """
+    try:
+        rows = _run_read(query, {"dataset": DATASET})
+        for row in rows:
+            src, rel, dst = row["src"], row["rel"], row["dst"]
+            if rel == "GENERATES":
+                sangsaeng.add((src, dst))
+            elif rel == "CONTROLS":
+                sanggeuk.add((src, dst))
+    except Exception:
+        pass
+    return sangsaeng, sanggeuk
+
+
 @mcp.tool()
 def recommend_hanja_by_ohaeng(
     sound_ohaeng: str | None = None,

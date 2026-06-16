@@ -1,0 +1,1034 @@
+{
+  "朴": {
+    "hangul": "박",
+    "resource_ohaeng": "목"
+  },
+  "鄭": {
+    "hangul": "정",
+    "resource_ohaeng": "토"
+  },
+  "劉": {
+    "hangul": "유",
+    "resource_ohaeng": "금"
+  },
+  "金": {
+    "hangul": "김",
+    "resource_ohaeng": "금"
+  },
+  "許": {
+    "hangul": "허",
+    "resource_ohaeng": "금"
+  },
+  "李": {
+    "hangul": "이",
+    "resource_ohaeng": "목"
+  },
+  "林": {
+    "hangul": "임",
+    "resource_ohaeng": "목"
+  },
+  "宋": {
+    "hangul": "송",
+    "resource_ohaeng": "목"
+  },
+  "姜": {
+    "hangul": "강",
+    "resource_ohaeng": "토"
+  },
+  "全": {
+    "hangul": "전",
+    "resource_ohaeng": "토"
+  },
+  "河": {
+    "hangul": "하",
+    "resource_ohaeng": "수"
+  },
+  "庾": {
+    "hangul": "유",
+    "resource_ohaeng": "목"
+  },
+  "丁": {
+    "hangul": "정",
+    "resource_ohaeng": "화"
+  },
+  "睦": {
+    "hangul": "목",
+    "resource_ohaeng": "목"
+  },
+  "羅": {
+    "hangul": "라",
+    "resource_ohaeng": "목"
+  },
+  "琴": {
+    "hangul": "금",
+    "resource_ohaeng": "금"
+  },
+  "方": {
+    "hangul": "방",
+    "resource_ohaeng": "토"
+  },
+  "崔": {
+    "hangul": "최",
+    "resource_ohaeng": "토"
+  },
+  "呂": {
+    "hangul": "여",
+    "resource_ohaeng": "수"
+  },
+  "南": {
+    "hangul": "남",
+    "resource_ohaeng": "화"
+  },
+  "趙": {
+    "hangul": "조",
+    "resource_ohaeng": "화"
+  },
+  "賓": {
+    "hangul": "빈",
+    "resource_ohaeng": "금"
+  },
+  "吉": {
+    "hangul": "길",
+    "resource_ohaeng": "수"
+  },
+  "禹": {
+    "hangul": "우",
+    "resource_ohaeng": "토"
+  },
+  "閔": {
+    "hangul": "민",
+    "resource_ohaeng": "수"
+  },
+  "殷": {
+    "hangul": "은",
+    "resource_ohaeng": "금"
+  },
+  "麻": {
+    "hangul": "마",
+    "resource_ohaeng": "목"
+  },
+  "吳": {
+    "hangul": "오",
+    "resource_ohaeng": "수"
+  },
+  "周": {
+    "hangul": "주",
+    "resource_ohaeng": "수"
+  },
+  "任": {
+    "hangul": "임",
+    "resource_ohaeng": "화"
+  },
+  "盧": {
+    "hangul": "노",
+    "resource_ohaeng": "수"
+  },
+  "卓": {
+    "hangul": "탁",
+    "resource_ohaeng": "목"
+  },
+  "卜": {
+    "hangul": "복",
+    "resource_ohaeng": "화"
+  },
+  "愼": {
+    "hangul": "신",
+    "resource_ohaeng": "화"
+  },
+  "石": {
+    "hangul": "석",
+    "resource_ohaeng": "금"
+  },
+  "孫": {
+    "hangul": "손",
+    "resource_ohaeng": "수"
+  },
+  "白": {
+    "hangul": "백",
+    "resource_ohaeng": "금"
+  },
+  "具": {
+    "hangul": "구",
+    "resource_ohaeng": "금"
+  },
+  "千": {
+    "hangul": "천",
+    "resource_ohaeng": "수"
+  },
+  "徐": {
+    "hangul": "서",
+    "resource_ohaeng": "화"
+  },
+  "程": {
+    "hangul": "정",
+    "resource_ohaeng": "목"
+  },
+  "表": {
+    "hangul": "표",
+    "resource_ohaeng": "목"
+  },
+  "田": {
+    "hangul": "전",
+    "resource_ohaeng": "목"
+  },
+  "朱": {
+    "hangul": "주",
+    "resource_ohaeng": "목"
+  },
+  "都": {
+    "hangul": "도",
+    "resource_ohaeng": "토"
+  },
+  "曺": {
+    "hangul": "조",
+    "resource_ohaeng": "화"
+  },
+  "廉": {
+    "hangul": "염",
+    "resource_ohaeng": "목"
+  },
+  "車": {
+    "hangul": "차",
+    "resource_ohaeng": "화"
+  },
+  "柳": {
+    "hangul": "류",
+    "resource_ohaeng": "목"
+  },
+  "申": {
+    "hangul": "신",
+    "resource_ohaeng": "금"
+  },
+  "延": {
+    "hangul": "연",
+    "resource_ohaeng": "토"
+  },
+  "元": {
+    "hangul": "원",
+    "resource_ohaeng": "목"
+  },
+  "文": {
+    "hangul": "문",
+    "resource_ohaeng": "목"
+  },
+  "裵": {
+    "hangul": "배",
+    "resource_ohaeng": "목"
+  },
+  "丘": {
+    "hangul": "구",
+    "resource_ohaeng": "토"
+  },
+  "高": {
+    "hangul": "고",
+    "resource_ohaeng": "화"
+  },
+  "景": {
+    "hangul": "경",
+    "resource_ohaeng": "화"
+  },
+  "玄": {
+    "hangul": "현",
+    "resource_ohaeng": "화"
+  },
+  "昔": {
+    "hangul": "석",
+    "resource_ohaeng": "화"
+  },
+  "康": {
+    "hangul": "강",
+    "resource_ohaeng": "목"
+  },
+  "權": {
+    "hangul": "권",
+    "resource_ohaeng": "목"
+  },
+  "安": {
+    "hangul": "안",
+    "resource_ohaeng": "목"
+  },
+  "尹": {
+    "hangul": "윤",
+    "resource_ohaeng": "수"
+  },
+  "嚴": {
+    "hangul": "엄",
+    "resource_ohaeng": "화"
+  },
+  "沈": {
+    "hangul": "심",
+    "resource_ohaeng": "수"
+  },
+  "辛": {
+    "hangul": "신",
+    "resource_ohaeng": "금"
+  },
+  "孔": {
+    "hangul": "공",
+    "resource_ohaeng": "수"
+  },
+  "秦": {
+    "hangul": "진",
+    "resource_ohaeng": "목"
+  },
+  "梁": {
+    "hangul": "양",
+    "resource_ohaeng": "목"
+  },
+  "魏": {
+    "hangul": "위",
+    "resource_ohaeng": "화"
+  },
+  "蔣": {
+    "hangul": "장",
+    "resource_ohaeng": "목"
+  },
+  "成": {
+    "hangul": "성",
+    "resource_ohaeng": "화"
+  },
+  "郭": {
+    "hangul": "곽",
+    "resource_ohaeng": "토"
+  },
+  "池": {
+    "hangul": "지",
+    "resource_ohaeng": "수"
+  },
+  "賈": {
+    "hangul": "가",
+    "resource_ohaeng": "금"
+  },
+  "簡": {
+    "hangul": "간",
+    "resource_ohaeng": "목"
+  },
+  "葛": {
+    "hangul": "갈",
+    "resource_ohaeng": "목"
+  },
+  "甘": {
+    "hangul": "감",
+    "resource_ohaeng": "토"
+  },
+  "堅": {
+    "hangul": "견",
+    "resource_ohaeng": "토"
+  },
+  "甄": {
+    "hangul": "견",
+    "resource_ohaeng": "토"
+  },
+  "慶": {
+    "hangul": "경",
+    "resource_ohaeng": "화"
+  },
+  "桂": {
+    "hangul": "계",
+    "resource_ohaeng": "목"
+  },
+  "谷": {
+    "hangul": "곡",
+    "resource_ohaeng": "수"
+  },
+  "公": {
+    "hangul": "공",
+    "resource_ohaeng": "금"
+  },
+  "邱": {
+    "hangul": "구",
+    "resource_ohaeng": "토"
+  },
+  "鞠": {
+    "hangul": "국",
+    "resource_ohaeng": "금"
+  },
+  "國": {
+    "hangul": "국",
+    "resource_ohaeng": "수"
+  },
+  "菊": {
+    "hangul": "국",
+    "resource_ohaeng": "목"
+  },
+  "君": {
+    "hangul": "군",
+    "resource_ohaeng": "수"
+  },
+  "弓": {
+    "hangul": "궁",
+    "resource_ohaeng": "화"
+  },
+  "斤": {
+    "hangul": "근",
+    "resource_ohaeng": "금"
+  },
+  "奇": {
+    "hangul": "기",
+    "resource_ohaeng": "토"
+  },
+  "欒": {
+    "hangul": "난",
+    "resource_ohaeng": "목"
+  },
+  "浪": {
+    "hangul": "낭",
+    "resource_ohaeng": "수"
+  },
+  "乃": {
+    "hangul": "내",
+    "resource_ohaeng": "금"
+  },
+  "奈": {
+    "hangul": "내",
+    "resource_ohaeng": "화"
+  },
+  "魯": {
+    "hangul": "노",
+    "resource_ohaeng": "수"
+  },
+  "路": {
+    "hangul": "노",
+    "resource_ohaeng": "토"
+  },
+  "雷": {
+    "hangul": "뇌",
+    "resource_ohaeng": "수"
+  },
+  "賴": {
+    "hangul": "뇌",
+    "resource_ohaeng": "금"
+  },
+  "樓": {
+    "hangul": "누",
+    "resource_ohaeng": "목"
+  },
+  "段": {
+    "hangul": "단",
+    "resource_ohaeng": "금"
+  },
+  "單": {
+    "hangul": "단",
+    "resource_ohaeng": "수"
+  },
+  "端": {
+    "hangul": "단",
+    "resource_ohaeng": "금"
+  },
+  "譚": {
+    "hangul": "담",
+    "resource_ohaeng": "금"
+  },
+  "唐": {
+    "hangul": "당",
+    "resource_ohaeng": "수"
+  },
+  "大": {
+    "hangul": "대",
+    "resource_ohaeng": "목"
+  },
+  "陶": {
+    "hangul": "도",
+    "resource_ohaeng": "토"
+  },
+  "道": {
+    "hangul": "도",
+    "resource_ohaeng": "토"
+  },
+  "頓": {
+    "hangul": "돈",
+    "resource_ohaeng": "화"
+  },
+  "敦": {
+    "hangul": "돈",
+    "resource_ohaeng": "금"
+  },
+  "董": {
+    "hangul": "동",
+    "resource_ohaeng": "목"
+  },
+  "杜": {
+    "hangul": "두",
+    "resource_ohaeng": "목"
+  },
+  "頭": {
+    "hangul": "두",
+    "resource_ohaeng": "화"
+  },
+  "萬": {
+    "hangul": "만",
+    "resource_ohaeng": "목"
+  },
+  "梅": {
+    "hangul": "매",
+    "resource_ohaeng": "목"
+  },
+  "孟": {
+    "hangul": "맹",
+    "resource_ohaeng": "수"
+  },
+  "明": {
+    "hangul": "명",
+    "resource_ohaeng": "화"
+  },
+  "牟": {
+    "hangul": "모",
+    "resource_ohaeng": "토"
+  },
+  "毛": {
+    "hangul": "모",
+    "resource_ohaeng": "화"
+  },
+  "苗": {
+    "hangul": "묘",
+    "resource_ohaeng": "목"
+  },
+  "墨": {
+    "hangul": "묵",
+    "resource_ohaeng": "토"
+  },
+  "米": {
+    "hangul": "미",
+    "resource_ohaeng": "목"
+  },
+  "潘": {
+    "hangul": "반",
+    "resource_ohaeng": "수"
+  },
+  "班": {
+    "hangul": "반",
+    "resource_ohaeng": "금"
+  },
+  "房": {
+    "hangul": "방",
+    "resource_ohaeng": "목"
+  },
+  "邦": {
+    "hangul": "방",
+    "resource_ohaeng": "토"
+  },
+  "龐": {
+    "hangul": "방",
+    "resource_ohaeng": "토"
+  },
+  "范": {
+    "hangul": "범",
+    "resource_ohaeng": "목"
+  },
+  "凡": {
+    "hangul": "범",
+    "resource_ohaeng": "수"
+  },
+  "卞": {
+    "hangul": "변",
+    "resource_ohaeng": "토"
+  },
+  "邊": {
+    "hangul": "변",
+    "resource_ohaeng": "토"
+  },
+  "奉": {
+    "hangul": "봉",
+    "resource_ohaeng": "목"
+  },
+  "鳳": {
+    "hangul": "봉",
+    "resource_ohaeng": "화"
+  },
+  "夫": {
+    "hangul": "부",
+    "resource_ohaeng": "목"
+  },
+  "傅": {
+    "hangul": "부",
+    "resource_ohaeng": "화"
+  },
+  "丕": {
+    "hangul": "비",
+    "resource_ohaeng": "수"
+  },
+  "彬": {
+    "hangul": "빈",
+    "resource_ohaeng": "화"
+  },
+  "氷": {
+    "hangul": "빙",
+    "resource_ohaeng": "수"
+  },
+  "史": {
+    "hangul": "사",
+    "resource_ohaeng": "수"
+  },
+  "舍": {
+    "hangul": "사",
+    "resource_ohaeng": "화"
+  },
+  "謝": {
+    "hangul": "사",
+    "resource_ohaeng": "금"
+  },
+  "森": {
+    "hangul": "삼",
+    "resource_ohaeng": "목"
+  },
+  "杉": {
+    "hangul": "삼",
+    "resource_ohaeng": "목"
+  },
+  "尙": {
+    "hangul": "상",
+    "resource_ohaeng": "금"
+  },
+  "西": {
+    "hangul": "서",
+    "resource_ohaeng": "금"
+  },
+  "宣": {
+    "hangul": "선",
+    "resource_ohaeng": "목"
+  },
+  "薛": {
+    "hangul": "설",
+    "resource_ohaeng": "목"
+  },
+  "葉": {
+    "hangul": "섭",
+    "resource_ohaeng": "목"
+  },
+  "星": {
+    "hangul": "성",
+    "resource_ohaeng": "화"
+  },
+  "蘇": {
+    "hangul": "소",
+    "resource_ohaeng": "목"
+  },
+  "邵": {
+    "hangul": "소",
+    "resource_ohaeng": "토"
+  },
+  "肖": {
+    "hangul": "소",
+    "resource_ohaeng": "목"
+  },
+  "松": {
+    "hangul": "송",
+    "resource_ohaeng": "목"
+  },
+  "水": {
+    "hangul": "수",
+    "resource_ohaeng": "수"
+  },
+  "洙": {
+    "hangul": "수",
+    "resource_ohaeng": "수"
+  },
+  "筍": {
+    "hangul": "순",
+    "resource_ohaeng": "목"
+  },
+  "舜": {
+    "hangul": "순",
+    "resource_ohaeng": "목"
+  },
+  "淳": {
+    "hangul": "순",
+    "resource_ohaeng": "수"
+  },
+  "順": {
+    "hangul": "순",
+    "resource_ohaeng": "화"
+  },
+  "承": {
+    "hangul": "승",
+    "resource_ohaeng": "목"
+  },
+  "昇": {
+    "hangul": "승",
+    "resource_ohaeng": "화"
+  },
+  "施": {
+    "hangul": "시",
+    "resource_ohaeng": "토"
+  },
+  "柴": {
+    "hangul": "시",
+    "resource_ohaeng": "목"
+  },
+  "阿": {
+    "hangul": "아",
+    "resource_ohaeng": "토"
+  },
+  "艾": {
+    "hangul": "애",
+    "resource_ohaeng": "목"
+  },
+  "夜": {
+    "hangul": "야",
+    "resource_ohaeng": "수"
+  },
+  "楊": {
+    "hangul": "양",
+    "resource_ohaeng": "목"
+  },
+  "樑": {
+    "hangul": "양",
+    "resource_ohaeng": "목"
+  },
+  "襄": {
+    "hangul": "양",
+    "resource_ohaeng": "목"
+  },
+  "魚": {
+    "hangul": "어",
+    "resource_ohaeng": "수"
+  },
+  "余": {
+    "hangul": "여",
+    "resource_ohaeng": "화"
+  },
+  "連": {
+    "hangul": "연",
+    "resource_ohaeng": "토"
+  },
+  "燕": {
+    "hangul": "연",
+    "resource_ohaeng": "화"
+  },
+  "永": {
+    "hangul": "영",
+    "resource_ohaeng": "수"
+  },
+  "榮": {
+    "hangul": "영",
+    "resource_ohaeng": "목"
+  },
+  "影": {
+    "hangul": "영",
+    "resource_ohaeng": "화"
+  },
+  "芮": {
+    "hangul": "예",
+    "resource_ohaeng": "목"
+  },
+  "乂": {
+    "hangul": "예",
+    "resource_ohaeng": "금"
+  },
+  "藝": {
+    "hangul": "예",
+    "resource_ohaeng": "목"
+  },
+  "玉": {
+    "hangul": "옥",
+    "resource_ohaeng": "금"
+  },
+  "溫": {
+    "hangul": "온",
+    "resource_ohaeng": "수"
+  },
+  "邕": {
+    "hangul": "옹",
+    "resource_ohaeng": "토"
+  },
+  "雍": {
+    "hangul": "옹",
+    "resource_ohaeng": "화"
+  },
+  "王": {
+    "hangul": "왕",
+    "resource_ohaeng": "금"
+  },
+  "姚": {
+    "hangul": "요",
+    "resource_ohaeng": "토"
+  },
+  "龍": {
+    "hangul": "용",
+    "resource_ohaeng": "토"
+  },
+  "于": {
+    "hangul": "우",
+    "resource_ohaeng": "수"
+  },
+  "宇": {
+    "hangul": "우",
+    "resource_ohaeng": "목"
+  },
+  "雲": {
+    "hangul": "운",
+    "resource_ohaeng": "수"
+  },
+  "芸": {
+    "hangul": "운",
+    "resource_ohaeng": "목"
+  },
+  "袁": {
+    "hangul": "원",
+    "resource_ohaeng": "목"
+  },
+  "苑": {
+    "hangul": "원",
+    "resource_ohaeng": "목"
+  },
+  "韋": {
+    "hangul": "위",
+    "resource_ohaeng": "금"
+  },
+  "兪": {
+    "hangul": "유",
+    "resource_ohaeng": "화"
+  },
+  "陸": {
+    "hangul": "육",
+    "resource_ohaeng": "토"
+  },
+  "陰": {
+    "hangul": "음",
+    "resource_ohaeng": "토"
+  },
+  "異": {
+    "hangul": "이",
+    "resource_ohaeng": "토"
+  },
+  "伊": {
+    "hangul": "이",
+    "resource_ohaeng": "화"
+  },
+  "印": {
+    "hangul": "인",
+    "resource_ohaeng": "목"
+  },
+  "慈": {
+    "hangul": "자",
+    "resource_ohaeng": "화"
+  },
+  "張": {
+    "hangul": "장",
+    "resource_ohaeng": "금"
+  },
+  "章": {
+    "hangul": "장",
+    "resource_ohaeng": "금"
+  },
+  "莊": {
+    "hangul": "장",
+    "resource_ohaeng": "목"
+  },
+  "邸": {
+    "hangul": "저",
+    "resource_ohaeng": "토"
+  },
+  "錢": {
+    "hangul": "전",
+    "resource_ohaeng": "금"
+  },
+  "占": {
+    "hangul": "점",
+    "resource_ohaeng": "화"
+  },
+  "諸": {
+    "hangul": "제",
+    "resource_ohaeng": "금"
+  },
+  "鍾": {
+    "hangul": "종",
+    "resource_ohaeng": "금"
+  },
+  "宗": {
+    "hangul": "종",
+    "resource_ohaeng": "목"
+  },
+  "左": {
+    "hangul": "좌",
+    "resource_ohaeng": "화"
+  },
+  "俊": {
+    "hangul": "준",
+    "resource_ohaeng": "화"
+  },
+  "汁": {
+    "hangul": "즙",
+    "resource_ohaeng": "수"
+  },
+  "增": {
+    "hangul": "증",
+    "resource_ohaeng": "토"
+  },
+  "曾": {
+    "hangul": "증",
+    "resource_ohaeng": "토"
+  },
+  "智": {
+    "hangul": "지",
+    "resource_ohaeng": "화"
+  },
+  "陳": {
+    "hangul": "진",
+    "resource_ohaeng": "토"
+  },
+  "奏": {
+    "hangul": "진",
+    "resource_ohaeng": "목"
+  },
+  "晋": {
+    "hangul": "진",
+    "resource_ohaeng": "화"
+  },
+  "昌": {
+    "hangul": "창",
+    "resource_ohaeng": "화"
+  },
+  "倉": {
+    "hangul": "창",
+    "resource_ohaeng": "화"
+  },
+  "創": {
+    "hangul": "창",
+    "resource_ohaeng": "금"
+  },
+  "蔡": {
+    "hangul": "채",
+    "resource_ohaeng": "목"
+  },
+  "菜": {
+    "hangul": "채",
+    "resource_ohaeng": "목"
+  },
+  "采": {
+    "hangul": "채",
+    "resource_ohaeng": "목"
+  },
+  "天": {
+    "hangul": "천",
+    "resource_ohaeng": "화"
+  },
+  "楚": {
+    "hangul": "초",
+    "resource_ohaeng": "목"
+  },
+  "初": {
+    "hangul": "초",
+    "resource_ohaeng": "금"
+  },
+  "秋": {
+    "hangul": "추",
+    "resource_ohaeng": "목"
+  },
+  "鄒": {
+    "hangul": "추",
+    "resource_ohaeng": "토"
+  },
+  "椿": {
+    "hangul": "춘",
+    "resource_ohaeng": "목"
+  },
+  "彈": {
+    "hangul": "탄",
+    "resource_ohaeng": "금"
+  },
+  "太": {
+    "hangul": "태",
+    "resource_ohaeng": "목"
+  },
+  "判": {
+    "hangul": "판",
+    "resource_ohaeng": "금"
+  },
+  "彭": {
+    "hangul": "팽",
+    "resource_ohaeng": "화"
+  },
+  "片": {
+    "hangul": "편",
+    "resource_ohaeng": "목"
+  },
+  "扁": {
+    "hangul": "편",
+    "resource_ohaeng": "목"
+  },
+  "平": {
+    "hangul": "평",
+    "resource_ohaeng": "목"
+  },
+  "包": {
+    "hangul": "포",
+    "resource_ohaeng": "금"
+  },
+  "馮": {
+    "hangul": "풍",
+    "resource_ohaeng": "화"
+  },
+  "皮": {
+    "hangul": "피",
+    "resource_ohaeng": "금"
+  },
+  "弼": {
+    "hangul": "필",
+    "resource_ohaeng": "금"
+  },
+  "夏": {
+    "hangul": "하",
+    "resource_ohaeng": "화"
+  },
+  "韓": {
+    "hangul": "한",
+    "resource_ohaeng": "금"
+  },
+  "漢": {
+    "hangul": "한",
+    "resource_ohaeng": "수"
+  },
+  "咸": {
+    "hangul": "함",
+    "resource_ohaeng": "수"
+  },
+  "海": {
+    "hangul": "해",
+    "resource_ohaeng": "수"
+  },
+  "邢": {
+    "hangul": "형",
+    "resource_ohaeng": "토"
+  },
+  "扈": {
+    "hangul": "호",
+    "resource_ohaeng": "목"
+  },
+  "胡": {
+    "hangul": "호",
+    "resource_ohaeng": "화"
+  },
+  "鎬": {
+    "hangul": "호",
+    "resource_ohaeng": "금"
+  },
+  "洪": {
+    "hangul": "홍",
+    "resource_ohaeng": "수"
+  },
+  "化": {
+    "hangul": "화",
+    "resource_ohaeng": "화"
+  },
+  "桓": {
+    "hangul": "환",
+    "resource_ohaeng": "목"
+  },
+  "興": {
+    "hangul": "흥",
+    "resource_ohaeng": "토"
+  },
+  "后": {
+    "hangul": "후",
+    "resource_ohaeng": "수"
+  },
+  "候": {
+    "hangul": "후",
+    "resource_ohaeng": "화"
+  },
+  "黃": {
+    "hangul": "황",
+    "resource_ohaeng": "토"
+  }
+}

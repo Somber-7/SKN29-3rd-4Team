@@ -46,9 +46,11 @@ class Pipeline:
         pass
 
     # 이름 추천 연속 요청 감지 키워드
-    _CONTINUATION_KW = {"더 추천", "2개 더", "3개 더", "하나 더", "몇 개 더", "추가로 추천", "다른 이름"}
+    _CONTINUATION_KW = {"더 추천", "2개 더", "3개 더", "하나 더", "몇 개 더", "추가로 추천", "다른 이름", "추가로", "추가"}
     _NAME_CONTEXT_KW = {"이름", "추천", "씨", "딸", "아들", "한자", "순우리말", "짓"}
     _NAME_REQUEST_KW = {"이름", "작명", "추천", "짓고"}
+    # 이름 유형 전환 키워드 (한자 ↔ 순우리말)
+    _NAME_TYPE_KW = frozenset({"순우리말", "우리말이름", "우리말 이름", "한글이름", "한글 이름"})
     # assistant 출력 포맷에서 추천 이름을 추출하는 패턴 ("## [이름 N] 전체이름 (한자)")
     _RECOMMENDED_PATTERN = re.compile(r"##\s*\[이름\s*\d+\]\s*([가-힣]{2,5})")
 
@@ -78,27 +80,75 @@ class Pipeline:
             if prev_assistant is not None and prev_user is not None:
                 break
 
-        # 케이스 1: clarify 반문에 대한 응답 → 원본 질문 + 보충 정보 합성
+        # 케이스 1: clarify 반문에 대한 응답 → 원본 이름 요청 + 모든 보충 정보 합성
+        # 연속 clarify가 2회 이상 발동될 경우 prev_user는 보충 답변이고 원본이 아님.
+        # 대화 전체에서 "씨/이름/추천"이 포함된 가장 오래된 user 메시지를 원본으로 사용.
         if prev_assistant and "아래 정보를 알려주세요" in prev_assistant and prev_user:
+            original_req = None
+            for msg in messages[:-1]:
+                if msg.get("role") == "user" and any(kw in msg.get("content", "") for kw in self._NAME_CONTEXT_KW):
+                    original_req = msg.get("content", "")
+                    break
+            if original_req and original_req != prev_user:
+                # 원본 + 보충 답변(prev_user) + 현재 메시지
+                return f"{original_req} {prev_user} {user_message}"
             return f"{prev_user} {user_message}"
 
-        # 케이스 2: 추가 추천 요청 ("2개 더", "하나 더 추천" 등)
-        # → 이전 대화에서 이름 추천 관련 user 메시지를 수집해 맥락 제공
+        # 케이스 2: 추가 추천 요청 ("추가로 3개만", "2개 더" 등)
+        # → 원본 이름 요청 메시지를 찾아 새 개수로 재구성한 자연어 쿼리 반환
         if any(kw in user_message for kw in self._CONTINUATION_KW):
-            name_msgs = [
-                m.get("content", "").strip()
-                for m in messages[:-1]
-                if m.get("role") == "user"
-                and any(kw in m.get("content", "") for kw in self._NAME_CONTEXT_KW)
-            ]
+            is_type_switch = any(kw in user_message for kw in self._NAME_TYPE_KW)
             prev_names = self._extract_prev_names(messages[:-1])
-            parts = []
-            if name_msgs:
-                parts.append(f"[이름 추천 맥락: {' / '.join(name_msgs)}]")
+            count_match = re.search(r"(\d+)\s*개", user_message)
+            count_str = count_match.group(0) if count_match else "3개"
+
+            if is_type_switch:
+                # 유형 전환 ("순우리말 이름도 추가로"): 성씨 포함된 원본 요청 + 새 유형으로 재구성
+                surname_base = None
+                for msg in reversed(messages[:-1]):
+                    if msg.get("role") == "user":
+                        content = msg.get("content", "")
+                        if "씨" in content and any(kw in content for kw in self._NAME_CONTEXT_KW):
+                            surname_base = content
+                            break
+
+                # 성씨 한자가 포함된 사용자 메시지 탐색 (clarify 응답)
+                hanja_suffix = ""
+                for msg in reversed(messages[:-1]):
+                    if msg.get("role") == "user":
+                        content = msg.get("content", "")
+                        hm = re.search(r"[一-鿿]{1,2}", content)
+                        if hm:
+                            hanja_suffix = f" 성씨 한자: {hm.group()}"
+                            break
+
+                type_kw = next((kw for kw in self._NAME_TYPE_KW if kw in user_message), "순우리말")
+                base = re.sub(r"(한자\s*이름|순우리말\s*이름|우리말\s*이름|한글\s*이름)", "", surname_base or "이름").strip()
+                query = f"{base} {type_kw} {count_str} 추천해줘{hanja_suffix}"
+                if prev_names:
+                    query += f" (이미 추천한 이름: {', '.join(prev_names)} 제외)"
+                return re.sub(r"\s+", " ", query).strip()
+
+            # 같은 유형 추가 추천: 원본 요청에서 새 개수로 재구성
+            original_req = None
+            for msg in reversed(messages[:-1]):
+                if msg.get("role") == "user" and any(
+                    kw in msg.get("content", "") for kw in self._NAME_REQUEST_KW
+                ):
+                    original_req = msg.get("content", "").strip()
+                    break
+
+            if original_req:
+                base = re.sub(r"(하나만?|한\s*개만?|\d+\s*개만?)", "", original_req)
+                base = re.sub(r"(추천\s*해\s*줘|추천\s*해\s*주세요|추천해)", "", base).strip()
+                base = re.sub(r"\s+", " ", base).strip().rstrip(".")
+                query = f"{base} {count_str} 추천해줘"
+            else:
+                query = f"이름 {count_str} 추천해줘"
+
             if prev_names:
-                parts.append(f"[이미 추천한 이름: {', '.join(prev_names)}]")
-            parts.append(f"추가 요청: {user_message} (앞서 추천한 이름과 겹치지 않는 새 이름으로)")
-            return " ".join(parts)
+                query += f" (이미 추천한 이름: {', '.join(prev_names)} 제외)"
+            return query
 
         # 케이스 3: 이름 추천 요청 + 이전 대화에 추천 이력이 있으면 중복 방지 문구 추가
         if any(kw in user_message for kw in self._NAME_REQUEST_KW):

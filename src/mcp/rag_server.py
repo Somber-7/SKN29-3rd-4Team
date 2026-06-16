@@ -123,12 +123,32 @@ def _load_person_name_hanja() -> list:
     return list(zip(results["documents"], results["metadatas"]))
 
 
+@functools.lru_cache(maxsize=512)
+def get_hanja_ohaeng(hanja_char: str) -> str:
+    """ChromaDB hanja_col에서 단일 한자의 자원오행을 조회합니다.
+    is_person_name_hanja 필터 없이 전체 한자 검색합니다."""
+    col = _get_collection("hanja_col")
+    if col is None:
+        return ""
+    try:
+        results = col.get(
+            where={"hanja": hanja_char},
+            include=["metadatas"],
+        )
+        metas = results.get("metadatas") or []
+        if metas:
+            return metas[0].get("resource_ohaeng", "") or ""
+    except Exception:
+        pass
+    return ""
+
+
 def sample_hanja(query: str, n_results: int = 20) -> str:
-    """인명용 한자를 메모리 캐시에서 무작위 샘플링합니다.
+    """인명용 한자를 메모리 캐시에서 샘플링합니다.
 
     이름 추천 전용. 시맨틱 검색 대신 메타데이터 필터 + 랜덤 샘플을 사용해
     매 요청마다 다양한 한자 풀을 제공합니다.
-    쿼리에 오행(木/火/土/金/水)이 명시된 경우 해당 자원오행으로 필터링합니다.
+    쿼리에 오행(木/火/土/金/水)이 명시된 경우 해당 자원오행으로도 필터링합니다.
     """
     all_hanja = _load_person_name_hanja()
 
@@ -153,8 +173,9 @@ def sample_hanja(query: str, n_results: int = 20) -> str:
 
     lines = [
         f"[인명용 한자 풀] {len(sampled)}건 샘플"
-        f" (전체 {len(pool)}건 중 무작위){filter_info}\n"
+        f" (전체 {len(pool)}건 중){filter_info}\n"
         f"답변 작성 시 아래 목록의 한자만 사용하세요. 목록에 없는 한자 사용 금지.\n"
+        f"각 항목의 hangul 필드가 해당 한자의 실제 독음(이름에서 읽히는 발음)입니다.\n"
     ]
     for i, (_, meta) in enumerate(sampled, 1):
         m = meta or {}
@@ -251,7 +272,6 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
         filter_info = f" [조건 필터: {cond_desc}]" if cond_desc else ""
         lines = [
             f"[검색 결과] '{query}' — hanja_col ({len(documents)}건){filter_info}\n"
-            f"답변 작성 시 각 항목의 [한자: 자원오행표] 태그를 그대로 포함하세요.\n"
         ]
         for i, meta in enumerate(metadatas, 1):
             m = meta or {}
@@ -272,7 +292,6 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
         filter_info = f" [필터: {cond_desc}]" if cond_desc else ""
         lines = [
             f"[paper_col] '{query}' 검색 결과 {len(documents)}건{filter_info}\n"
-            f"답변 작성 시 각 항목의 [논문: ...] 태그를 그대로 포함하세요.\n"
         ]
         for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
             m = meta or {}
@@ -287,8 +306,7 @@ def search_rag(query: str, collection: str, n_results: int = 5) -> str:
             lines.append(
                 f"  [{i}] 유사도: {similarity} | {chunk_type}\n"
                 f"      {title}({year}) — {author} | p.{page}\n"
-                f"      {content}\n"
-                f"      [논문: {title}({year})]"
+                f"      {content}"
             )
     else:
         lines = [f"[{collection}] '{query}' 검색 결과 {len(documents)}건\n"]

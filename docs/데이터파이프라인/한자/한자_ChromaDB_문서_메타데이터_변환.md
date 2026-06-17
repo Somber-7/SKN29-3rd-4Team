@@ -1,5 +1,19 @@
 # 한자 ChromaDB Document/Metadata 변환 작업 기록
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: 운영 한자 2,420건의 ChromaDB 문서/메타데이터 변환 기록. 현재 산출물과 잘 일치한다.
+
+이 변환 산출물은 Pipeline Server 내부 RAG 경로의 기준 데이터로 사용된다. Open WebUI에서 한자 조건 추천 질문이 들어오면 LangGraph `internal_rag` 경로가 `rag_server.py`를 통해 `data/chroma`의 `hanja_col`을 조회하며, 본 문서의 `hanja_documents.json`은 해당 컬렉션의 핵심 입력 데이터다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 입력 | `data/processed/unihan_maping/hanja_unicode_ohaeng_verified_corrected.json` 2,420건 |
+| 출력 | `data/processed/hanja_documents.json` 2,420건 |
+| 검증 | `data/processed/hanja_documents_validation.json` 기준 issues 0 |
+| 사용처 | `rag_server.py`, `graph_server.py`, `index_hanja_neo4j.py` |
+| 후속 주의 | 현재 Chroma `hanja_col` 전체 2,438건은 후속 성씨 보조 18건 추가 때문이며, 이 문서는 운영 한자 2,420건 변환 기록이다 |
+
 **작성일**: 2026-06-11  
 **작업 범위**: 정제된 한자 JSON을 ChromaDB 적재용 `document + metadata` 구조로 변환  
 **입력 기준 파일**: `data/processed/unihan_maping/hanja_unicode_ohaeng_verified_corrected.json`

@@ -34,3 +34,6 @@ xlrd==2.0.1
 
 # 환경변수
 python-dotenv==1.2.2
+
+# API 통신 (국가법령정보, 우리말샘)
+requests

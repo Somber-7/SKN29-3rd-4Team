@@ -10,11 +10,11 @@
 <table>
   <thead>
     <tr>
-      <th align="center">구분</th>
-      <th align="center">임준</th>
-      <th align="center">최지용</th>
-      <th align="center">윤대성</th>
-      <th align="center">이지현</th>
+      <th align="center"><div align="center">구분</div></th>
+      <th align="center"><div align="center">임준</div></th>
+      <th align="center"><div align="center">최지용</div></th>
+      <th align="center"><div align="center">윤대성</div></th>
+      <th align="center"><div align="center">이지현</div></th>
     </tr>
   </thead>
   <tbody>
@@ -62,8 +62,9 @@
 |---|---|
 | 대주제 | LLM을 연동한 내외부 문서 기반 질의응답 시스템 |
 | 도메인 | 작명 / 법령 (인명용 한자 규정, 가족관계등록법) |
-| 핵심 기술 | LangGraph · FastMCP · ChromaDB · Neo4j · OpenAI API |
-| LLM | gpt-5.4-mini |
+| 핵심 기술 | LangGraph · ChromaDB · Neo4j · OpenAI API |
+| 운영 기본 모델 | gpt-5.4-mini |
+| 실험 트랙 모델 | Qwen3.5-4B LoRA 파인튜닝 |
 | 임베딩 | jhgan/ko-sroberta-multitask (로컬) |
 
 ---
@@ -74,34 +75,35 @@
 - **법령 적법성 검증** — 인명용 한자 규정 / 가족관계등록법 조항 근거 제시
 - **학술 논문 기반 트렌드 분석** — 작명 관련 논문 266건(통계표 37건 포함) RAG 검색
 - **출처 명시 답변** — 모든 답변에 근거 라벨 포함 `[한자: 자원오행표 木오행]` `[논문: 제목(연도)]` `[출처: law_col]`
-- **ReAct 루프** — 복합 질의 처리 (다중 도구 순차 호출, 최대 3회)
+- **ReAct 루프** — 복합 질의 처리 (다중 도구 순차 호출, 최대 5회)
 
 ---
 
 ## 시스템 아키텍처
 
-```
-사용자 자연어 입력
+```text
+사용자 자연어 입력 (Open WebUI)
+        ↓
+[Pipeline Server :9099]  (pipelines/naming_pipeline.py)
         ↓
 [LangGraph StateGraph — ReAct Router]  (src/graph/naming_graph.py)
-   llm_router → 도구 선택 → 결과 누적 → 반복(최대 3회) → generate
+   llm_router → 도구 선택 → 결과 누적 → 반복(최대 5회) → generate
         ↓
-┌──────────────────────────────────────────────────┐
-│ internal_rag  : ChromaDB 벡터 검색               │
-│   수리 / 오행 / 한자 / 법령 / 순우리말 / 논문    │
-│                                                  │
-│ graph_db      : Neo4j 한자-오행-관계 탐색        │
-│                                                  │
-│ sql_db        : 81수리 4격 계산 / 오행 조합 분석  │
-│                                                  │
-│ external_api  : 국가법령정보 API / 우리말샘 API  │
-└──────────────────────────────────────────────────┘
+[ MCP Tools ]
+ ├─ RAG Tool (rag_server.py)
+ │   └─ ChromaDB (한자/법령/오행/수리/순우리말/논문) 검색
+ │
+ ├─ DB Tool (db_server.py)
+ │   └─ 81수리 4격 계산 / 吉수 역산 / 오행 조합 분석
+ │
+ ├─ Graph Tool (graph_server.py)
+ │   └─ Neo4j 한자-오행-법령 구조 탐색
+ │
+ └─ Law API Tool (law_server.py)
+     └─ 국가법령정보 API / 우리말샘 API 연동
         ↓
-[MCP 서버 — FastMCP]  (src/mcp/)
-rag_server · db_server · law_server · graph_server
-        ↓
-[LLM 답변 생성 — gpt-4o-mini]
-조건 충족 근거 + 출처 라벨 포함 최종 답변
+[LLM 답변 생성 — gpt-5.4-mini]
+조건 충족 근거가 포함된 최종 답변을 WebUI로 반환
 ```
 
 ---
@@ -110,7 +112,7 @@ rag_server · db_server · law_server · graph_server
 
 | 컬렉션 | 건수 | 내용 |
 |---|---|---|
-| `hanja_col` | 2,420건 | 한자 뜻·음·획수·자원오행·발음오행 (원획법 기준) |
+| `hanja_col` | 2,438건 | 한자 뜻·음·획수·자원오행·발음오행 (성씨 보조 포함) |
 | `suri_col` | 81건 | 획수 합산 0~81 수리 운세 풀이 |
 | `ohaeng_col` | 125건 | 오행 조합 125종 상생/상극 운세 |
 | `law_col` | 248건 | 가족관계등록법 / 인명용 한자 규정 |
@@ -163,6 +165,25 @@ rag_server · db_server · law_server · graph_server
 
 ---
 
+## 🏆 모델 평가 및 비교 결론
+
+LLM의 단순 생성이 아닌 작명이라는 특수 도메인의 **조건 충족(수리, 오행, 법령 등)**을 위해 두 가지 트랙으로 평가를 진행했습니다.
+
+### 1. GPT-5.4-mini 운영 Pipeline (기본 모델)
+- **방식**: RAG + Tool + LangGraph 기반 복합 추론
+- **평가 결과 (11개 케이스)**: **성공 처리 11/11, 전체 평균 4.09 / 5점**
+- **강점**: 81수리 계산, 순우리말 검증, 법령 근거 제시 등에서 매우 높은 정확도(Groundedness)와 조건 충족도를 보임. 운영 파이프라인으로 매우 적합함.
+
+### 2. Qwen3.5-4B LoRA 파인튜닝 (실험 트랙)
+- **방식**: 파인튜닝 모델 단독 응답 (RAG 미사용)
+- **평가 결과 (11개 케이스)**: **성공 처리 10/11, 전체 평균 1.63 / 5점**
+- **한계점**: 챗봇으로서의 말투와 응답 형식 모방에는 성공했으나, **수리 계산 오류, 오행 상생/상극 환각(Hallucination), 법령 팩트체크 실패** 등 4B 소형 모델 체급의 한계를 보임.
+
+### 💡 최종 결론
+작명 도메인은 단순 문장 생성보다 **사실성(Factuality)과 계산 정확성**이 중요합니다. 따라서 **GPT Pipeline을 최종 운영 모델로 확정**하였으며, Qwen 파인튜닝은 향후 Hybrid 구조에서 단순 응답을 보조하는 경량 모델로서의 가능성을 확인하는 실험적 성과로 남깁니다.
+
+---
+
 ## 데이터 소스
 
 | 데이터 | 출처 | 형태 | 상태 |
@@ -175,7 +196,7 @@ rag_server · db_server · law_server · graph_server
 | 81수리 운세 / 오행 조합 운세 | 직접 구조화 | JSON | 수집 완료 |
 | 출생신고 이름 빈도 통계 (2016~2026) | 법원행정처 공공데이터 | XLS | 수집 완료 |
 | 작명 관련 학술 논문 | 논문 PDF 전처리 | PDF→JSON | 수집 완료 (266청크) |
-| 한자 확장 후보군 6,564건 | hanja.pdf 원본 + Unihan/기존 한자 기준 교차검증 | JSON | 후보군 정리 완료 |
+| 한자 확장 후보군 6,564건 | hanja.pdf 원본 + Unihan 교차검증 | JSON | 운영 DB 대기 상태 |
 
 > API 키: `OPENAI_API_KEY` · `LAW_API_KEY` · `URIMALSAM_API_KEY` 발급 완료
 
@@ -186,34 +207,21 @@ rag_server · db_server · law_server · graph_server
 ```
 SKN29-3rd-4Team/
 ├── data/
-│   ├── raw/
-│   │   ├── unihan/            # Unicode Unihan 원본 TXT
-│   │   ├── pdf/               # 법령·논문 원본 PDF
-│   │   └── reference/         # peoplehanja.json / 81suri.json / yinyang.json
-│   │                          # johab.json / 2016_2026상위_출생신고_이름_현황.xls
-│   ├── processed/                         # 전처리 완료 데이터
-│   │   ├── hanja_documents.json           # 확정 한자 메인 데이터. 인명용 한자 2,420건의 음/뜻/획수/발음오행/자원오행 메타데이터
-│   │   ├── hanja2_candidate_documents.json # hanja.pdf 기준 메인 한자에 없는 확장 후보군 6,564건. 아직 확정 데이터가 아닌 후보 데이터
-│   │   ├── suri_documents.json            # 수리 데이터. 획수 기반 길흉/수리 해석을 RAG 문서 형식으로 정리한 데이터
-│   │   ├── ohaeng_documents.json          # 오행 데이터. 목/화/토/금/수 및 상생/상극 등 오행 해석 문서 데이터
-│   │   ├── law_articles.json              # 법령/규정 관련 문서 데이터. 작명 또는 이름 사용 기준 검토용 법령 조항
-│   │   ├── urimalsam_names.json           # 우리말샘 기반 이름/단어 관련 데이터. 한글 이름 의미 보조 검토용
-│   │   └── unihan_mapping/                # 유니한/유니코드 매핑 처리 산출물. 한자 코드포인트, 획수, 음 등 매핑 참고 데이터
+│   ├── raw/                   # Unihan, 법령 PDF, 81수리 등 원천 자료
+│   ├── processed/             # 전처리 완료 JSON 메인 데이터 및 확장 후보군 데이터
 │   └── chroma/                # ChromaDB PersistentClient 저장소
 ├── src/
-│   ├── graph/                 # LangGraph StateGraph (ReAct)
-│   │   └── naming_graph.py
-│   └── mcp/                   # FastMCP 서버 4종
-│       ├── rag_server.py      # ChromaDB 검색 (2 tools)
-│       ├── db_server.py       # 수리/오행 연산 (5 tools)
-│       ├── law_server.py      # 국가법령 API (3 tools)
-│       └── graph_server.py    # Neo4j 탐색 (6 tools)
-├── docs/
-│   ├── project_idea_naming.md
-│   ├── 진행_체크리스트.md
-│   ├── internal_rag_명세서.md
-│   └── db_server_명세서.md
-└── README.md
+│   ├── graph/                 # LangGraph StateGraph (naming_graph.py)
+│   ├── mcp/                   # FastMCP 서버 4종 (rag, db, law, graph)
+│   ├── data/                  # 데이터 수집 및 인덱싱 스크립트
+│   └── preprocess/            # 한자/논문 전처리 보조 스크립트
+├── docker/                    # Pipeline Dockerfile 정의
+├── pipelines/                 # Open WebUI 연결 진입점 (naming_pipeline.py)
+├── finetuning/                # Qwen3.5-4B LoRA 학습, 데이터 생성, API 서빙 스크립트
+├── tests/                     # RAG 평가(rag_eval), Qwen 평가 스크립트 모음
+├── docs/                      # 프로젝트 설명 및 산출물 문서
+├── docker-compose.yml         # Pipeline Server 실행 구성
+└── README.md                  # 프로젝트 통합 설명서
 ```
 
 ---
@@ -225,41 +233,44 @@ SKN29-3rd-4Team/
 | 1단계 | 데이터 수집 및 구조화 | ✅ 완료 |
 | 2단계 | 전처리 (법령 PDF KoNLPy Okt 파싱) | ✅ 완료 |
 | 3단계 | ChromaDB 인덱싱 (6컬렉션) | ✅ 완료 |
-| 3단계 | Neo4j 스키마 설계 및 인덱싱 | 🔄 진행 중 |
-| 4단계 | LangGraph StateGraph 기본 구조 + 4방향 Router | ✅ 완료 |
-| 4단계 | `graph_db_node` → `graph_server.py` 연결 | ✅ 완료 |
-| 4단계 | ReAct 루프 (다중 의도 질의 처리) | ✅ 완료 |
-| 4단계 | 면책 고지 답변 형식 | ✅ 완료 |
+| 3단계 | Neo4j 스키마 설계 및 인덱싱 | ✅ 완료 |
+| 4단계 | LangGraph StateGraph 설계 및 4방향 Router | ✅ 완료 |
+| 4단계 | ReAct 루프 (다중 의도 질의 처리) 및 면책 고지 | ✅ 완료 |
 | 5단계 | MCP 서버 4종 · 16개 도구 구현 | ✅ 완료 |
 | 6단계 | LLM 답변 생성 (gpt-5.4-mini) | ✅ 완료 |
-| 7단계 | Qwen3.5:4b QLoRA 파인튜닝 (평가항목용) | 🔄 진행 중 |
-| 평가 | Ground Truth QA 30~50개 + LLM-as-a-Judge | ✅ 완료 |
+| 7단계 | Qwen3.5:4b QLoRA 파인튜닝 및 운영 모델 비교 평가 | ✅ 완료 |
 
 ---
 
+## 환경 설정 및 시작 가이드
 
-## 환경 설정
+프로젝트 실행은 로컬 Conda 환경과 Docker 기반 환경 두 가지를 지원합니다.
 
+### 1. Docker Compose로 Pipeline Server 실행 (권장)
 ```bash
 # 저장소 클론
 git clone https://github.com/Somber-7/SKN29-3rd-4Team.git
 cd SKN29-3rd-4Team
 
+# 환경변수 설정
+cp .env.example .env
+# .env 파일에 OPENAI_API_KEY, LAW_API_KEY, URIMALSAM_API_KEY 입력
+
+# Pipeline Server 구동
+docker-compose up -d
+```
+> 구동 후 Open WebUI 컨테이너를 연결하여 `http://localhost:9099`를 파이프라인 엔드포인트로 사용합니다.
+
+### 2. 로컬 개발 환경 (Conda)
+```bash
 # conda 환경 생성 (Python 3.11)
 conda create -n skn29-3rd python=3.11
 conda activate skn29-3rd
 
 # 패키지 설치
 pip install -r requirements.txt
-
-# 환경변수 설정
-cp .env.example .env
-# .env 파일에 아래 키 입력:
-# OPENAI_API_KEY=...
-# LAW_API_KEY=...
-# URIMALSAM_API_KEY=...
 ```
 
 ---
 
-> 최종 업데이트: 2026-06-16
+> 최종 업데이트: 2026-06-17

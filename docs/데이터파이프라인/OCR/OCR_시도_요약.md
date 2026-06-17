@@ -1,5 +1,19 @@
 # OCR 시도 요약 보고서
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: OCR 시도 기록. 현재 운영 RAG 데이터와 직접 동일시하지 않고, OCR 실험/보존 산출물로 구분한다.
+
+현재 Open WebUI -> Pipeline Server -> LangGraph 흐름에서 순우리말 이름 추천에 직접 사용되는 기준 데이터는 `urimalsam_names.json`과 `urimalsam_col`이다. 본 OCR 결과는 해당 운영 컬렉션을 대체하는 데이터가 아니라, 향후 순우리말 후보군을 보강할 때 참고할 수 있는 실험 자료로 관리한다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 원본 PDF | `data/raw/pdf/정겨운우리말.pdf` |
+| 실제 OCR 산출물 | `data/processed/ocr/ocr_raw_full.txt`, `ocr_structured.txt`, `ocr_clean_log.txt` |
+| 현재 없는 파일 | `ocr_cleaned.txt`, `ocr_progress.json`, `ocr_log.txt` |
+| 운영 순우리말 RAG | `data/processed/urimalsam_names.json` 301건, `urimalsam_col` 301건 |
+| 판단 | OCR 결과는 순우리말 후보 보강 참고자료이며, 현재 운영 RAG의 직접 원본으로 단정하지 않음 |
+
 ## 목적
 
 국립국어원_정겨운우리말.pdf (406페이지, 이미지형 스캔본)에서
@@ -104,6 +118,6 @@
 | 파일 | 상태 | 용도 |
 |------|------|------|
 | `ocr_raw_full.txt` | 보존 | 재처리 시 원본 참조 |
-| `ocr_cleaned.txt` | 보존 | 정제 결과 원본 |
+| `ocr_cleaned.txt` | 현재 없음 | 과거 계획 산출물. 실제 구조화 결과는 `ocr_structured.txt` 기준 |
 | `ocr_structured.txt` | **사용** | ChromaDB 인덱싱 입력 |
 | `ocr_pipeline.md` | 보존 | 파이프라인 전체 문서 |

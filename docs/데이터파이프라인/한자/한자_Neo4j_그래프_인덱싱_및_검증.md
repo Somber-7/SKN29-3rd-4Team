@@ -1,8 +1,22 @@
 # 한자 Neo4j 그래프 인덱싱 및 검증 작업 기록
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: Neo4j 그래프 인덱싱 검증 기록. 현재 참조 경로와 연결 상태를 아래 기준으로 보완한다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 기준 문서 | `docs/기획/프로젝트_아이디어_작명.md` |
+| 현재 없는 참조 | `docs/진행_체크리스트.md`는 현재 docs 목록에 없음 |
+| 그래프 기준 데이터 | `data/processed/hanja_documents.json` 2,420건 |
+| 인덱싱 코드 | `src/graph/index_hanja_neo4j.py` |
+| Graph MCP | `src/mcp/graph_server.py`, `answer_graph_query` 포함 |
+
+본문에 `docs/프로젝트_아이디어_작명.md` 또는 `docs/진행_체크리스트.md` 참조가 남아 있으면 위 표를 현재 기준으로 본다.
+
 **작성일**: 2026-06-11  
 **작업 범위**: 한자 document/metadata JSON을 Neo4j 그래프 구조로 적재하고 관계 정합성 검증  
-**기준 문서**: `docs/프로젝트_아이디어_작명.md`  
+**기준 문서**: `docs/기획/프로젝트_아이디어_작명.md`
 **실행 스크립트**: `src/graph/index_hanja_neo4j.py`
 
 ## 1. 작업 목적
@@ -20,8 +34,8 @@ ChromaDB는 의미 기반 검색에 강하지만, 특정 한자가 어떤 오행
 | Neo4j 입력 기준 | `data/processed/hanja_documents.json` |
 | 한자 정제 원본 | `data/processed/unihan_maping/hanja_unicode_ohaeng_verified_corrected.json` |
 | 오행 원천 표 | `data/raw/ohaeng/자원오행 발음오행구분표.xlsx` |
-| 프로젝트 설계 문서 | `docs/프로젝트_아이디어_작명.md` |
-| 진행 체크 문서 | `docs/진행_체크리스트.md` |
+| 프로젝트 설계 문서 | `docs/기획/프로젝트_아이디어_작명.md` |
+| 진행 체크 문서 | 현재 `docs/진행_체크리스트.md` 없음. 필요 시 별도 생성 필요 |
 
 Raw 파일은 Neo4j 스크립트에서 직접 재처리하지 않았다. Raw 파일은 교차검증과 원천 확인 용도로 사용하고, 실제 적재는 전처리 완료된 `hanja_documents.json`을 기준으로 했다.
 
@@ -166,9 +180,11 @@ Neo4j 서버 적재 후 최종 기대 상태는 다음과 같이 정리했다.
 | 현재 값과 다른 stale relationship | 0 |
 | 대표 수정 3건 조회 | 정상 |
 
-## 7. 후속 사용 방향
+## 7. 현재 사용 방향
 
 이 Neo4j 그래프는 LangGraph의 `graph_db` 경로에서 사용한다.
+
+현재 운영 흐름에서는 Open WebUI에서 들어온 그래프 관련 질문이 Pipeline Server를 거쳐 LangGraph Router로 전달되고, Router가 `graph_db`를 선택하면 `graph_db_node`가 `src/mcp/graph_server.py`의 `answer_graph_query()`를 호출한다. Neo4j는 실제 Docker 환경의 Graph DB 서버로 운영되며, Pipeline은 환경변수 기반 연결 정보를 사용해 조회한다.
 
 주요 사용 시나리오는 다음과 같다.
 
@@ -177,4 +193,4 @@ Neo4j 서버 적재 후 최종 기대 상태는 다음과 같이 정리했다.
 3. 목/화/토/금/수 오행의 상생/상극 관계를 탐색한다.
 4. 사용자가 제시한 오행, 획수, 음, 뜻 조건에 맞는 한자 후보를 필터링한다.
 
-다음 단계에서는 `src/mcp/graph_server.py`를 통해 이 Neo4j 그래프를 LangGraph `graph_db_node`에 연결하면 된다.
+따라서 이 문서의 Neo4j 적재 결과는 현재 `graph_server.py`와 LangGraph `graph_db_node`를 통해 운영 Pipeline에서 활용되는 상태다.

@@ -1,5 +1,19 @@
 # 한자 ChromaDB 인덱싱 및 검증 작업 기록
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: 최초 운영 한자 2,420건 ChromaDB 적재 검증 기록. 현재 Chroma 전체 수량은 후속 변경을 포함해 다르다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 최초 적재 기준 | `hanja_documents.json` 2,420건 |
+| 현재 Chroma `hanja_col` 전체 | 2,438건 |
+| 수량 차이 | 성씨 보조 데이터 18건 추가 |
+| 추천 풀 | `is_person_name_hanja=True` 2,420건 |
+| 검증 파일 | `data/processed/hanja_chromadb_index_validation.json` |
+
+따라서 본문에 적힌 2,420건은 최초 운영 한자 적재 검증 기준으로 유지하되, 현재 컬렉션 전체 count는 2,438건으로 구분한다.
+
 **작성일**: 2026-06-11  
 **작업 범위**: 한자 document/metadata JSON을 ChromaDB `hanja_col` 컬렉션으로 적재 및 검증  
 **입력 기준 파일**: `data/processed/hanja_documents.json`  
@@ -125,5 +139,7 @@ ChromaDB 실제 DB 파일은 재생성 가능한 인덱싱 산출물이므로 Gi
 ## 7. 후속 사용 방향
 
 `hanja_col`은 LangGraph의 `internal_rag` 경로에서 한자 뜻, 오행, 획수 조건을 의미 기반으로 검색할 때 사용한다.
+
+운영 흐름에서는 사용자가 Open WebUI에서 입력한 작명 조건이 Pipeline Server의 `naming_pipeline.py`로 전달되고, LangGraph Router가 한자 검색이 필요하다고 판단하면 `internal_rag_node`가 `rag_server.search_rag()`를 통해 `hanja_col`을 조회한다.
 
 정확한 관계 검증이나 인명용 허용 여부 확인은 ChromaDB 단독으로 처리하지 않고, 같은 기준 데이터에서 생성한 Neo4j 그래프와 함께 사용한다. ChromaDB는 의미 검색, Neo4j는 관계 검증을 담당하는 구조로 분리한다.

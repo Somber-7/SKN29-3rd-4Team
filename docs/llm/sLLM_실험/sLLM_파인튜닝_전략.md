@@ -1,5 +1,21 @@
 # sLLM 파인튜닝 전략
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: sLLM 실험 전략 문서. 운영 서비스 모델과 파인튜닝 실험 모델을 분리해서 읽어야 한다.
+
+현재 운영 Pipeline은 Open WebUI에서 전달된 질문을 `naming_pipeline.py`가 수신한 뒤 LangGraph Router와 MCP Tool 계층을 거쳐 `gpt-5.4-mini`로 답변을 생성하는 구조다. 이 문서의 Qwen 기반 파인튜닝은 운영 기본 모델을 대체하기 위한 절차가 아니라, 작명 응답 형식 학습과 평가 항목 검증을 위한 별도 실험 트랙으로 관리한다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 운영 서비스 모델 | `gpt-5.4-mini` |
+| sLLM 실험 모델 | `Qwen/Qwen3.5-4B` |
+| 학습 데이터 | `data/processed/finetune_data.json` 296건 |
+| 관련 코드 | `finetuning/train.py`, `serve_api.py`, `run_inference.py`, `eval.sh` |
+| 역할 | 평가 항목 충족 및 작명 포맷 학습 실험. 운영 기본 답변 생성 모델은 아님 |
+
+현재 저장소 코드와 이 문서의 실행 예시는 `Qwen/Qwen3.5-4B` 기준으로 맞춘다.
+
 > 작성일: 2026-06-12
 > 대상 모델: Qwen3.5:4b
 > 기법: QLoRA (PEFT)
@@ -113,7 +129,7 @@ RTX 3080 (10GB) 또는 강의실 GPU 서버에서 실행 가능.
 ```bash
 # 파인튜닝 전 (base)
 lm_eval --model hf \
-    --model_args pretrained=Qwen/Qwen2.5-3B \
+    --model_args pretrained=Qwen/Qwen3.5-4B \
     --tasks hellaswag,arc_easy,arc_challenge \
     --device cuda:0 \
     --output_path ./eval_results/base

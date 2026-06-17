@@ -1,11 +1,29 @@
 # OCR 데이터 수집 및 정제 파이프라인
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: OCR 설계/시도 기록. 아래 내용은 현재 저장소에 실제 존재하는 파일과 코드 상태를 기준으로 한 보완이다.
+
+현재 운영 Pipeline은 `urimalsam_names.json`과 `urimalsam_col`을 기준으로 순우리말 이름을 검색한다. 이 OCR 파이프라인은 운영 컬렉션을 직접 생성한 최종 경로가 아니라, 이미지형 PDF에서 후보 어휘를 확보하기 위해 시도한 보강용 데이터 처리 기록으로 관리한다. 실행 경로는 가능하면 저장소 루트 기준의 repo-relative 경로로 정리한다.
+
+| 구분 | 현재 기준 |
+|---|---|
+| OCR 원본 PDF | `data/raw/pdf/정겨운우리말.pdf` |
+| 실제 존재 산출물 | `data/processed/ocr/ocr_raw_full.txt`, `ocr_structured.txt`, `ocr_clean_log.txt` |
+| 실제 존재하지 않는 산출물 | `ocr_progress.json`, `ocr_log.txt`, `ocr_cleaned.txt` |
+| 비교 이미지 | `data/processed/ocr/compare/page_*.png` |
+| 관련 코드 | `src/data/ocr_extract.py`, `src/data/ocr_clean.py`, `src/data/extract_compare_pages.py` |
+| 주의점 | 관련 코드 일부에 과거 절대경로가 남아 있어 현재 repo-relative 실행 기준과 다름 |
+| 현재 활용 상태 | OCR 결과는 참고/보존 성격이 강하며, 운영 `urimalsam_col`은 `urimalsam_names.json` 301건 기준 |
+
+기존 본문에서 `ocr_progress.json`, `ocr_log.txt`, `ocr_cleaned.txt`를 현재 산출물처럼 설명하는 부분은 실제 파일 상태와 다르다. 현재 기준으로는 `ocr_structured.txt`가 구조화된 OCR 결과 파일이며, OCR 결과가 운영 RAG 데이터로 직접 연결되었다고 단정하지 않는다.
+
 ## 개요
 
 | 항목 | 내용 |
 |------|------|
 | 대상 문서 | 국립국어원_정겨운우리말.pdf (406페이지) |
-| 목적 | 순우리말 이름 후보 어휘 추출 → RAG 인덱싱 입력 데이터 생성 |
+| 목적 | 순우리말 이름 후보 어휘 추출 → 향후 RAG 보강 후보 데이터 생성 |
 | 도구 | EasyOCR (한국어), PyMuPDF, Python 3.x |
 | 전체 흐름 | PDF → raw OCR → 정제 → 구조화 |
 
@@ -26,8 +44,10 @@ ocr_cleaned.txt   +  ocr_clean_log.txt
 ocr_structured.txt
         │
         ▼  [다음 단계]
-ChromaDB 인덱싱  →  RAG 검색
+운영 반영 여부 검토  →  필요 시 별도 ChromaDB 후보 컬렉션으로 검증
 ```
+
+위 흐름도는 초기 설계 기준을 포함한다. 현재 저장소에 실제 남아 있는 산출물은 `ocr_raw_full.txt`, `ocr_structured.txt`, `ocr_clean_log.txt`이며, `ocr_progress.json`, `ocr_log.txt`, `ocr_cleaned.txt`는 현재 파일 목록에서 확인되지 않는다.
 
 ---
 
@@ -36,8 +56,9 @@ ChromaDB 인덱싱  →  RAG 검색
 ```
 SKN29-3rd-4Team/
 ├── docs/
-│   ├── 국립국어원_정겨운우리말.pdf   ← 원본 입력
-│   └── ocr_pipeline.md              ← 이 문서
+│   └── 데이터파이프라인/OCR/OCR_파이프라인.md
+├── data/raw/pdf/
+│   └── 정겨운우리말.pdf             ← 원본 입력
 ├── src/data/
 │   ├── ocr_extract.py               ← 1단계: PDF → raw OCR
 │   └── ocr_clean.py                 ← 2단계: raw → 정제
@@ -47,7 +68,7 @@ SKN29-3rd-4Team/
     ├── ocr_log.txt                  ← 추출 실행 로그
     ├── ocr_cleaned.txt              ← 정제 완료 텍스트
     ├── ocr_clean_log.txt            ← 정제 변경 로그
-    ├── ocr_structured.txt           ← 항목별 구조화 최종본 ★ RAG 입력
+    ├── ocr_structured.txt           ← 항목별 구조화 최종본. 현재는 참고/보존, 향후 RAG 보강 후보
     └── compare/                     ← 원본 PDF 비교 이미지 (검증용)
         ├── page_8.png
         ├── page_9.png
@@ -235,7 +256,7 @@ python src/data/ocr_clean.py
 
 ---
 
-#### `data/processed/ocr/ocr_structured.txt` ★ RAG 인덱싱 입력
+#### `data/processed/ocr/ocr_structured.txt` — 구조화 결과 및 향후 RAG 보강 후보
 
 | 항목 | 내용 |
 |------|------|
@@ -307,7 +328,7 @@ python src/data/ocr_clean.py
 
 ## 다음 단계: RAG 인덱싱
 
-`ocr_structured.txt`를 ChromaDB에 인덱싱하는 흐름:
+향후 `ocr_structured.txt`를 ChromaDB에 인덱싱하려면 다음 흐름을 사용할 수 있다. 현재 운영 Chroma 컬렉션에는 OCR 전용 컬렉션이 확인되지 않는다.
 
 ```python
 # 1. 파일 로드 및 항목 분리

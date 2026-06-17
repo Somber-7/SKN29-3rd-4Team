@@ -1,5 +1,19 @@
 # 🌐 외부 API 통합 명세서
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: 외부 API 통합 명세. 아래 표는 현재 `src/mcp/law_server.py` 구현 기준이다.
+
+본 문서의 API 연동은 별도 Docker 서버를 추가로 정의하는 구조가 아니라, Pipeline 서버 내부의 MCP Tool 계층에서 외부 서비스를 호출하는 방식으로 사용된다. 사용자가 Open WebUI에서 질문하면 Pipeline의 LangGraph `external_api` 경로가 `law_server.py` 도구를 통해 법령 또는 우리말샘 API를 조회하고, 조회 결과는 최종 답변 생성을 위한 근거 컨텍스트로 전달된다.
+
+| Tool | 실제 함수 | 실제 입력 | 실제 API/파라미터 | 현재 상태 |
+|---|---|---|---|---|
+| 법령 검색 | `search_law(query)` | 법령명 또는 검색어 | `lawSearch.do`, `OC`, `target=law`, `type=JSON`, `query` | 구현됨 |
+| 법령 본문 조회 | `get_law_article(mst, article_num)` | 법령일련번호 `MST`, 선택 조문 번호 | `lawService.do`, `OC`, `target=law`, `type=JSON`, `MST` | 구현됨 |
+| 순우리말 검증 | `verify_korean_word(word)` | 검증 단어 | 우리말샘 search API, `key`, `q`, `req_type=json`, `method=exact` | 구현됨 |
+
+기존 본문에 `lsId` 중심으로 본문 조회를 설명한 부분이 있으나, 현재 구현은 `search_law()` 결과의 법령일련번호 `MST`를 `get_law_article()`에 전달하는 구조다. 또한 외부 API 결과를 ChromaDB에 캐싱하는 흐름은 현재 명확한 구현으로 확인되지 않으므로, 구현 완료 기능이 아니라 향후 보완 항목으로 본다.
+
 생성일: 2026년 6월 16일
 
 이 문서는 프로젝트에서 사용하는 외부 API(국가법령정보 API, 우리말샘 API)의 사용 설명서 및 연동 가이드를 통합한 문서입니다.
@@ -12,8 +26,8 @@
 
 국가법령정보 API는 법령의 ID(일련번호)를 알아야 본문을 조회할 수 있으므로, 반드시 아래 **2단계 호출 순서**를 따라야 합니다.
 
-1. **목록 조회 (Search)**: 법령명(예: "가족관계의 등록 등에 관한 규칙")으로 검색하여 `lsId`(법령일련번호)를 획득.
-2. **본문 조회 (Get Body)**: 확보한 `lsId`로 법령 본문을 호출하여 실제 조항 텍스트 추출.
+1. **목록 조회 (Search)**: 법령명(예: "가족관계의 등록 등에 관한 규칙")으로 검색하여 `MST`(법령일련번호)를 획득.
+2. **본문 조회 (Get Body)**: 확보한 `MST`로 법령 본문을 호출하여 실제 조항 텍스트 추출.
 
 ### 1.2 API 상세 명세
 
@@ -37,7 +51,7 @@
 | **`OC`** | (인증키) | 사용자 인증 ID |
 | **`target`** | `law` | 검색 대상 |
 | **`type`** | `JSON` | **[필수]** |
-| **`lsId`** | (법령ID) | 1단계에서 획득한 `lsId` 값 |
+| **`MST`** | (법령일련번호) | 1단계에서 획득한 `MST` 값 |
 
 ### 1.3 출력 결과 (JSON) 및 추출 필드
 
@@ -57,7 +71,7 @@ import requests
 
 def get_law_content(law_name: str, article_num: str):
     try:
-        # 1. 목록 조회로 lsId 획득
+        # 1. 목록 조회로 MST 획득
         search_url = f"https://www.law.go.kr/DRF/lawSearch.do?OC={API_KEY}&target=law&type=JSON&query={law_name}"
         search_res = requests.get(search_url, timeout=5).json()
 
@@ -66,14 +80,14 @@ def get_law_content(law_name: str, article_num: str):
         law_list = search_res.get('LawSearch', {}).get('law', [])
         for law in law_list:
             if law.get('lawNm') == law_name:
-                ls_id = law.get('lsId')
+                mst = law.get('법령일련번호')
                 break
 
         if not ls_id:
             return "해당 법령을 찾을 수 없습니다."
 
         # 2. 본문 조회로 상세 조문 확보
-        body_url = f"https://www.law.go.kr/DRF/lawService.do?OC={API_KEY}&target=law&type=JSON&lsId={ls_id}"
+        body_url = f"https://www.law.go.kr/DRF/lawService.do?OC={API_KEY}&target=law&type=JSON&MST={mst}"
         law_data = requests.get(body_url, timeout=5).json()
 
         # 3. 조문(Jo) 리스트에서 원하는 번호 추출 (계층 구조 반영 및 딕셔너리 예외 처리)

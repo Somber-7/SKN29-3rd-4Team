@@ -1,5 +1,22 @@
 # 작명 QA 시스템: 데이터 처리 서버 (db_server.py) 명세서
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: DB/계산 MCP 서버 명세. 현재 `src/mcp/db_server.py`는 별도 업무 SQLite가 아니라 JSON, XLS, pandas 기반으로 동작한다.
+
+LangGraph의 노드명은 `sql_db`이지만, 현재 구현에서 이 경로는 실제 SQL 데이터베이스를 조회하는 구조가 아니다. Pipeline 내부에서 `db_server.py`의 계산 Tool을 호출하여 81수리 4격, 길수 조합, 오행 조합, 이름 통계 조회를 처리하는 연산 계층으로 이해하는 것이 정확하다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 구현 파일 | `src/mcp/db_server.py` |
+| 원본 데이터 | `data/raw/reference/81suri.json`, `yinyang.json`, `2016_2026상위_출생신고_이름_현황.xls` |
+| 원본 특성 | `81suri.json`, `johab.json`은 `//` 주석이 포함된 JSON-like 파일이며 코드에서 주석 제거 후 로드 |
+| 제공 도구 | `get_surname_strokes`, `calculate_name_suri`, `find_lucky_strokes`, `lookup_ohaeng_combo`, `search_name_stats` |
+| 81수리 공식 | 원격=A+B, 형격=S+A, 이격=S+B, 정격=S+A+B |
+| 이름 통계 | 외부 API가 아니라 로컬 XLS 파일을 pandas로 조회 |
+
+ChromaDB 내부 저장소 파일로 `data/chroma/chroma.sqlite3`가 존재하지만, 이는 Chroma 자체 저장소이며 `db_server.py`의 업무 데이터 저장 방식이 SQLite라는 의미는 아니다.
+
 이 문서는 Naming QA System의 핵심 워커(Worker) 노드 역할을 수행하는 **`db_server.py` (수리/오행 연산 MCP 서버)**의 아키텍처와 제공하는 툴(Tool)들에 대한 명세서입니다.
 
 ---

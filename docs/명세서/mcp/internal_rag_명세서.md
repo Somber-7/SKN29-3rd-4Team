@@ -1,5 +1,33 @@
 # internal_rag 구현 명세서
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: RAG MCP 서버 기준 문서. 아래 내용은 현재 `src/mcp/rag_server.py`와 실제 ChromaDB 상태를 기준으로 한 최신 보완이다.
+
+Open WebUI에서 입력된 질문은 Pipeline Server의 `naming_pipeline.py`를 거쳐 LangGraph Router로 전달된다. Router가 내부 문서 검색이 필요하다고 판단하면 `internal_rag_node`가 `rag_server.search_rag()`를 호출하고, `data/chroma`의 ChromaDB 컬렉션을 조회해 최종 답변 생성을 위한 근거 컨텍스트를 구성한다.
+
+| 항목 | 현재 기준 |
+|---|---|
+| 구현 파일 | `src/mcp/rag_server.py` |
+| Chroma 경로 | `data/chroma` |
+| 임베딩 모델 | `jhgan/ko-sroberta-multitask` |
+| 등록 컬렉션 | `suri_col`, `ohaeng_col`, `hanja_col`, `law_col`, `urimalsam_col`, `paper_col` |
+| 한자 샘플링 | `sample_hanja()`는 `is_person_name_hanja=True`인 2,420건만 추천 풀로 사용 |
+| 논문 필터 | `paper_col`에서 `chunk_type=table` 또는 `chunk_type=text` 필터 사용 |
+
+현재 컬렉션 수량은 다음과 같다.
+
+| 컬렉션 | 현재 수량 | 비고 |
+|---|---:|---|
+| `hanja_col` | 2,438 | 운영 한자 2,420건 + 성씨 보조 18건. 추천 풀은 2,420건 |
+| `suri_col` | 81 | 81수리 문서 |
+| `ohaeng_col` | 125 | 오행 조합 문서 |
+| `law_col` | 248 | `law_articles.json` 250건 중 중복 ID 2건 제외 |
+| `urimalsam_col` | 301 | 순우리말 이름 문서 |
+| `paper_col` | 264 | text 216건, table 48건 |
+
+기존 본문에서 `paper_col` 수량 또는 표/본문 분할 수량이 다르게 적힌 부분은 이 표를 현재 기준으로 본다. ChromaDB 내부에는 `chroma.sqlite3`가 존재할 수 있지만, 이는 벡터 DB의 자체 저장 파일이며 `db_server.py`의 업무 데이터 저장 방식이 SQLite라는 의미는 아니다.
+
 > 담당 파트: 4단계 LangGraph StateGraph — `internal_rag_node` / 5단계 MCP 서버 — `rag_server.py`
 > 최종 업데이트: 2026-06-12 (paper_col 추가)
 
@@ -138,7 +166,7 @@ ChromaDB PersistentClient  →  data/chroma/  (SQLite 기반 벡터 DB)
 | `hanja_col` | 한자별 뜻·획수·오행·인명용 여부 | 2,420건 |
 | `law_col` | 가족관계등록법·대법원규칙 조문 | 248건 |
 | `urimalsam_col` | 순우리말 이름 | 301건 |
-| `paper_col` | 작명 관련 학술 논문 (본문 + 통계표) | 266건 (표 37 + 본문 229) |
+| `paper_col` | 작명 관련 학술 논문 (본문 + 통계표) | 264건 (표 48 + 본문 216) |
 
 ### 4-3. `_parse_hanja_conditions()` — 조건 파싱 (`hanja_col` 전용)
 

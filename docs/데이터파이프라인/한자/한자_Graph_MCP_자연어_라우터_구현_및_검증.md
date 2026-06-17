@@ -1,5 +1,20 @@
 # 한자 Graph MCP 자연어 라우터 구현 및 검증
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: Graph MCP 자연어 라우터 구현 기록. 현재는 LangGraph 파이프라인과 연결된 상태다.
+
+Pipeline 컨테이너에서는 FastMCP 서버 프로세스를 별도로 기동하기보다, `naming_pipeline.py` 초기화 과정에서 MCP 모듈을 import하고 `graph_server.py`의 Tool 함수를 직접 호출하는 방식으로 사용한다. 따라서 본 문서의 MCP Tool은 개념적으로 분리된 도구 계층이지만, 현재 운영 경로에서는 LangGraph `graph_db_node`의 내부 호출 대상으로 이해하는 것이 정확하다.
+
+| 호출 경로 | 현재 상태 |
+|---|---|
+| 직접 MCP Tool 호출 | 가능 |
+| `graph_server.answer_graph_query()` 내부 라우팅 | 구현됨 |
+| `naming_graph.py`의 `graph_db_node` 경유 | 연결됨 |
+| 기준 데이터 | `hanja_documents.json` 2,420건 |
+
+기존 본문에 `naming_graph.py`를 수정하지 않았다는 취지의 과거 표현이 있다면, 현재 기준으로는 `graph_db_node`가 `answer_graph_query()`를 호출하는 상태를 우선한다.
+
 **작성일**: 2026-06-12  
 **작업 범위**: `graph_server.py` 자연어 질의 라우터 추가, Neo4j Graph MCP Tool 검증, 한자 오행 산출물 정합성 보정  
 **대상 파일**: `src/mcp/graph_server.py`
@@ -10,7 +25,7 @@ Neo4j에 적재된 한자 그래프를 LangGraph 또는 MCP 호출 단계에서 
 
 기존에는 `check_graph_status`, `lookup_hanja`, `check_person_name_hanja`, `get_ohaeng_relations`, `recommend_hanja_by_ohaeng` 같은 개별 Tool을 직접 선택해야 했다. 이번 작업에서는 사용자의 자연어 질문을 받아 내부에서 적절한 Tool로 분기하는 `answer_graph_query(query: str, limit: int = 10)`를 추가했다.
 
-이 방식은 `src/graph/naming_graph.py` 같은 팀원 작업 파일을 직접 수정하지 않고, Graph 조회 책임을 `src/mcp/graph_server.py` 안에 모아두기 위한 구조다.
+초기 구현 시에는 `src/graph/naming_graph.py` 같은 팀원 작업 파일을 직접 수정하지 않고, Graph 조회 책임을 `src/mcp/graph_server.py` 안에 모아두는 구조로 출발했다. 현재는 `naming_graph.py`의 `graph_db_node`가 `graph_server.answer_graph_query()`를 호출하도록 연결되어 있다.
 
 ## 2. 구현 내용
 
@@ -55,10 +70,10 @@ OHE-00730 한자 조회
 
 이번 작업은 `graph_server.py` 내부에서만 Graph 조회 라우팅을 확장하는 방향으로 진행했다.
 
-`src/graph/naming_graph.py`는 팀원이 LangGraph StateGraph 흐름을 구성하는 핵심 파일이므로 직접 수정하지 않았다. 따라서 이번 작업은 다음 구조를 유지한다.
+초기 작업 시점에는 `src/graph/naming_graph.py`를 직접 수정하지 않았다. 현재 구현 기준으로는 다음 구조를 사용한다.
 
 1. `graph_server.py`는 Neo4j Graph 조회 Tool과 자연어 라우터를 제공한다.
-2. `naming_graph.py`는 필요 시 나중에 `graph_server.py` Tool을 호출하도록 연결할 수 있다.
+2. `naming_graph.py`의 `graph_db_node`는 `graph_server.answer_graph_query()`를 호출한다.
 3. Graph 조회 로직 변경이 LangGraph 전체 상태 흐름에 직접 영향을 주지 않도록 분리한다.
 
 ## 4. 검증 순서

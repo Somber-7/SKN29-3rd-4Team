@@ -1,5 +1,20 @@
 # Neo4j Graph MCP Server 구현 기록
 
+## 현행 구현 기준 보완 (2026-06-16)
+
+> 문서 상태: Graph MCP 서버 구현 기록. 현재 `src/mcp/graph_server.py` 기준 최신 도구 목록은 6개다.
+
+| Tool | 역할 |
+|---|---|
+| `check_graph_status` | 그래프 상태 확인 |
+| `lookup_hanja` | 한자 상세 조회 |
+| `check_person_name_hanja` | 인명용 한자 여부 확인 |
+| `get_ohaeng_relations` | 오행 상생/상극 관계 조회 |
+| `recommend_hanja_by_ohaeng` | 오행 조건 기반 한자 추천 |
+| `answer_graph_query` | 자연어 그래프 질의 라우터 |
+
+현재 LangGraph의 `graph_db_node`는 `graph_server.answer_graph_query(state["query"])`를 호출한다.
+
 **작성일**: 2026-06-11  
 **작업 범위**: Neo4j 한자 그래프 조회용 MCP 서버 구현 및 자체검증  
 **대상 파일**: `src/mcp/graph_server.py`
@@ -183,15 +198,15 @@ BELONGS_TO = 2420 * 2 = 4840
 | `OHE-00739` | `묘` | `錨` | `수` | `수` |
 | `OHE-01598` | `일` | `逸` | `토` | `목` |
 
-## 9. 후속 사용 방향
+## 9. 현재 사용 방향
 
-다음 단계는 `src/graph/naming_graph.py`의 `graph_db_node`에서 `graph_server.py` Tool을 호출하도록 연결하는 것이다.
+현재는 `src/graph/naming_graph.py`의 `graph_db_node`가 `graph_server.answer_graph_query()`를 호출하는 구조로 연결되어 있다. Neo4j는 실제 Docker 환경의 Graph DB 서버로 운영되고, `graph_server.py`는 환경변수를 통해 해당 서버에 접속해 필요한 관계 조회를 수행한다.
 
-연결 후 기대 흐름은 다음과 같다.
+현재 기대 흐름은 다음과 같다.
 
 1. 사용자가 한자, 오행, 인명용 여부 관련 질문을 입력한다.
 2. LangGraph Router가 `graph_db` 경로로 분기한다.
-3. `graph_db_node`가 `graph_server.py` Tool을 호출한다.
+3. `graph_db_node`가 `graph_server.answer_graph_query()`를 호출한다.
 4. Neo4j에서 관계 기반 결과를 조회한다.
 5. 최종 답변 생성 단계에서 출처 라벨과 면책 문구를 포함한다.
 

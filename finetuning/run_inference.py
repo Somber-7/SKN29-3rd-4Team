@@ -1,3 +1,8 @@
+"""
+title: Qwen3.5-4B 파인튜닝 모델 추론 및 평가 스크립트 (v2)
+description: 학습이 완료된 QLoRA 어댑터를 불러와서 직접 터미널에서 채팅하거나 BLEU/ROUGE 평가를 진행합니다.
+"""
+
 import os
 import json
 import argparse
@@ -6,66 +11,90 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 from tqdm import tqdm
 
+# ==========================================================
+# 1. 설정
+# ==========================================================
+BASE_MODEL_ID = "Qwen/Qwen3.5-4B"
+ADAPTER_DIR = "./models/qwen3.5-4b-naming-qlora-v2"
+DATA_PATH = "../data/processed/finetune_data_v2.json"
+
 def load_model():
-    BASE_MODEL_ID = "Qwen/Qwen3.5-4B"
-    LORA_PATH = "./models/qwen3.5-4b-naming-qlora"
-
-    print("🚀 토크나이저 및 기본 모델 로딩 중... (잠시만 기다려주세요)")
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_ID)
-
+    print("🚀 토크나이저 및 베이스 모델 로딩 중...")
+    
+    tokenizer = AutoTokenizer.from_pretrained(ADAPTER_DIR)
+    
     base_model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL_ID,
-        dtype=torch.bfloat16,
-        device_map="auto"
+        device_map="auto",
+        torch_dtype=torch.bfloat16,
     )
-
-    print("🔗 파인튜닝된 뇌(LoRA)를 기본 모델에 장착 중...")
-    model = PeftModel.from_pretrained(base_model, LORA_PATH)
+    
+    print("🚀 LoRA 어댑터 결합 중...")
+    model = PeftModel.from_pretrained(base_model, ADAPTER_DIR)
     model.eval()
     
     return model, tokenizer
 
 def run_interactive(model, tokenizer):
-    print("\n=========================================")
-    print("인터랙티브 테스트 모드입니다. 질문을 입력하세요. (종료하려면 'quit' 또는 'exit' 입력)")
-    print("=========================================")
+    print("\n✅ 모델 로딩 완료! 작명 AI 어시스턴트와 대화를 시작합니다.")
+    print("종료하려면 'quit', 'exit', '종료' 중 하나를 입력하세요.\n")
     
     while True:
-        prompt = input("\n❓ 질문: ")
-        if prompt.strip().lower() in ['quit', 'exit']:
-            print("테스트를 종료합니다.")
-            break
+        try:
+            user_input = input("🧑 사용자: ")
+            if user_input.strip() in ["quit", "exit", "종료"]:
+                print("대화를 종료합니다.")
+                break
+                
+            if not user_input.strip():
+                continue
             
-        chat_format = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-        inputs = tokenizer(chat_format, return_tensors="pt").to(model.device)
-
-        print("\n🤖 Qwen이 작명 중입니다...\n")
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=250,
+            messages = [{"role": "user", "content": user_input}]
+            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+            
+            generated_ids = model.generate(
+                model_inputs.input_ids,
+                max_new_tokens=512,
                 temperature=0.7,
                 top_p=0.9,
-                repetition_penalty=1.1,
-                pad_token_id=tokenizer.eos_token_id
+                repetition_penalty=1.05,
+                pad_token_id=tokenizer.eos_token_id,
+                do_sample=True
             )
-
-        generated_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-        print(generated_text)
-        print("=========================================")
+            
+            generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)]
+            response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            
+            print(f"\n🤖 Qwen 작명 AI: \n{response}\n")
+            print("-" * 50)
+            
+        except KeyboardInterrupt:
+            print("\n대화를 종료합니다.")
+            break
+        except Exception as e:
+            print(f"\n오류가 발생했습니다: {e}\n")
 
 def run_evaluate(model, tokenizer, num_samples):
-    import evaluate
-    
+    try:
+        import evaluate
+    except ImportError:
+        print("❌ 'evaluate' 라이브러리가 필요합니다. 'pip install evaluate rouge_score' 명령어를 실행해주세요.")
+        return
+        
     print("🚀 평가지표(BLEU, ROUGE) 모듈 다운로드 중...")
     bleu = evaluate.load("bleu")
     rouge = evaluate.load("rouge")
 
-    DATA_PATH = "finetune_data.json"
+    if not os.path.exists(DATA_PATH):
+        print(f"❌ 데이터 경로를 찾을 수 없습니다: {DATA_PATH}")
+        return
 
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         dataset = json.load(f)
 
+    # QA 형식이 있는 데이터만 추출
+    dataset = [item for item in dataset if "instruction" in item and "output" in item]
     test_samples = dataset[:num_samples]
     predictions = []
     references = []
@@ -76,15 +105,17 @@ def run_evaluate(model, tokenizer, num_samples):
         ground_truth = item["output"]
         references.append(ground_truth)
         
-        chat_format = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-        inputs = tokenizer(chat_format, return_tensors="pt").to(model.device)
+        messages = [{"role": "user", "content": prompt}]
+        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tokenizer([text], return_tensors="pt").to(model.device)
         
         with torch.no_grad():
             outputs = model.generate(
-                **inputs, 
-                max_new_tokens=150, 
+                inputs.input_ids, 
+                max_new_tokens=250, 
                 temperature=0.1, 
-                pad_token_id=tokenizer.eos_token_id
+                pad_token_id=tokenizer.eos_token_id,
+                do_sample=True
             )
         
         generated_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
@@ -106,7 +137,7 @@ def run_evaluate(model, tokenizer, num_samples):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="파인튜닝 모델 추론 및 평가 툴")
     parser.add_argument("--mode", type=str, choices=["interactive", "evaluate"], default="interactive",
-                        help="실행 모드: 'interactive'(눈으로 직접 확인) 또는 'evaluate'(정량 지표 계산)")
+                        help="실행 모드: 'interactive'(눈으로 직접 확인) 또는 'evaluate'(BLEU/ROUGE 정량 평가)")
     parser.add_argument("--samples", type=int, default=20,
                         help="evaluate 모드에서 평가할 샘플 개수 (기본값: 20)")
     

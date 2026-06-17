@@ -116,7 +116,7 @@ def generate_finetune_data():
     # =========================================================
     output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "processed"))
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "finetune_data.json")
+    output_path = os.path.join(output_dir, "finetune_data_v2.json")
 
     success_count = 0
     for idx, query in enumerate(all_queries, 1):

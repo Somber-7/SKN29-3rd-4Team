@@ -7,30 +7,23 @@
 
 ## 팀 소개
 
-<table>
+<table width="100%">
   <thead>
     <tr>
-      <th align="center"><div align="center">구분</div></th>
-      <th align="center"><div align="center">임준</div></th>
-      <th align="center"><div align="center">최지용</div></th>
-      <th align="center"><div align="center">윤대성</div></th>
-      <th align="center"><div align="center">이지현</div></th>
+      <th width="12%" style="text-align: center; vertical-align: middle;">구분</th>
+      <th width="22%" style="text-align: center; vertical-align: middle;">임준</th>
+      <th width="22%" style="text-align: center; vertical-align: middle;">최지용</th>
+      <th width="22%" style="text-align: center; vertical-align: middle;">윤대성</th>
+      <th width="22%" style="text-align: center; vertical-align: middle;">이지현</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td align="center"><b>캐릭터</b></td>
-      <td align="center"><img src="docs/assets/char_임준.png" width="150" height="150" style="object-fit:cover;"/></td>
-      <td align="center"><img src="docs/assets/char_최지용.png" width="150" height="150" style="object-fit:cover;"/></td>
-      <td align="center"><img src="docs/assets/char_윤대성.png" width="150" height="150" style="object-fit:cover;"/></td>
-      <td align="center"><img src="docs/assets/char_이지현.png" width="150" height="150" style="object-fit:cover;"/></td>
-    </tr>
-    <tr>
-      <td align="center"><b>역할</b></td>
-      <td align="center">팀장<br/><sub>길드 마스터</sub></td>
-      <td align="center">Graph DB<br/><sub>검증 조율사</sub></td>
-      <td align="center">데이터<br/><sub>기록관</sub></td>
-      <td align="center">RAG<br/><sub>사전 감정사</sub></td>
+      <td align="center"><img src="docs/assets/char_임준.png" style="width: 100%; max-width: 150px; height: auto; aspect-ratio: 1/1; object-fit: cover;" /></td>
+      <td align="center"><img src="docs/assets/char_최지용.png" style="width: 100%; max-width: 150px; height: auto; aspect-ratio: 1/1; object-fit: cover;" /></td>
+      <td align="center"><img src="docs/assets/char_윤대성.png" style="width: 100%; max-width: 150px; height: auto; aspect-ratio: 1/1; object-fit: cover;" /></td>
+      <td align="center"><img src="docs/assets/char_이지현.png" style="width: 100%; max-width: 150px; height: auto; aspect-ratio: 1/1; object-fit: cover;" /></td>
     </tr>
     <tr>
       <td align="center"><b>담당</b></td>
@@ -38,13 +31,6 @@
       <td>Neo4j 스키마 설계<br/>한자-오행 관계 인덱싱<br/>graph_server.py 구현</td>
       <td>Unihan 파싱·오행표 병합<br/>논문 PDF 전처리<br/>ChromaDB 인덱싱</td>
       <td>한자·어휘 데이터 검증<br/>임베딩 흐름 정리<br/>RAG 기반 QA 설계</td>
-    </tr>
-    <tr>
-      <td align="center"><b>소개</b></td>
-      <td>Git 흐름과 서버 인프라를 관리하며 팀의 작업이 한 방향으로 합쳐지도록 이끄는 길드 마스터</td>
-      <td>Neo4j 그래프와 데이터 정합성을 검증하며 파이프라인이 안정적으로 연결되도록 조율하는 검증자</td>
-      <td>흩어진 원천 자료와 문서를 연결해 프로젝트의 지식 기반을 여는 기록관</td>
-      <td>한자와 어휘의 의미를 세밀하게 검토해 추천 결과의 신뢰도를 높이는 사전 감정사</td>
     </tr>
   </tbody>
 </table>
@@ -69,11 +55,33 @@
 
 ---
 
+## 기술 스택 및 Tool
+
+| 아이콘 | 이름 | 내용(작업쓰인내용) |
+|---|---|---|
+| <img src="https://cdn.simpleicons.org/python/3776AB" width="22" alt="Python" /> | Python 3.11 | LangGraph Pipeline, MCP Tool, 데이터 전처리, 인덱싱, 평가 스크립트 구현 |
+| <img src="https://cdn.simpleicons.org/langchain/1C3C3C" width="22" alt="LangGraph" /> | LangGraph | 사용자 질문을 RAG, 계산, 법령/API, 그래프 경로로 라우팅하고 ReAct 루프 구성 |
+| <img src="https://cdn.simpleicons.org/langchain/1C3C3C" width="22" alt="LangChain" /> | LangChain / ChatOpenAI | `gpt-5.4-mini` 라우터, 답변 생성, 내부 검증 성격 후처리, LLM-as-a-Judge 평가 연결 |
+| <img src="https://github.com/modelcontextprotocol.png" width="22" alt="MCP" /> | FastMCP | `rag_server.py`, `db_server.py`, `law_server.py`, `graph_server.py` 4개 Tool 모듈과 16개 Tool 구성 |
+| <img src="https://github.com/chroma-core.png" width="22" alt="ChromaDB" /> | ChromaDB | 한자, 수리, 오행, 법령, 순우리말, 논문 6개 컬렉션 벡터 검색 저장소로 사용 |
+| <img src="https://cdn.simpleicons.org/neo4j/4581C3" width="22" alt="Neo4j" /> | Neo4j | 한자, 음, 획수, 오행, 법령 허용 관계를 그래프로 구성하고 탐색 |
+| <img src="https://github.com/openai.png" width="22" alt="OpenAI" /> | OpenAI API | 운영 기본 모델 `gpt-5.4-mini` 기반 답변 생성과 평가에 사용 |
+| <img src="https://cdn.simpleicons.org/alibabacloud/FF6A00" width="22" alt="Qwen" /> | Qwen3.5-4B LoRA | sLLM 파인튜닝 실험 및 GPT Pipeline과의 성능 비교에 사용 |
+| <img src="https://cdn.simpleicons.org/huggingface/FFD21E" width="22" alt="Hugging Face" /> | sentence-transformers | `jhgan/ko-sroberta-multitask` 로컬 임베딩 모델로 ChromaDB 문서 벡터화 |
+| <img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/adobeacrobatreader.svg" width="22" alt="PDF" /> | pdfplumber / pypdf | 한자, 법령, 논문 PDF 텍스트 추출 및 전처리 보조 |
+| <img src="https://cdn.simpleicons.org/pypi/3775A9" width="22" alt="KoNLPy" /> | KoNLPy Okt | 법령 및 한국어 텍스트 전처리에서 형태소 분석과 정규화 보조 |
+| <img src="https://cdn.simpleicons.org/pandas/150458" width="22" alt="pandas" /> | pandas / openpyxl / xlrd | XLS/XLSX 기반 이름 통계, 오행표, 성씨 보조 데이터 처리 |
+| <img src="https://cdn.simpleicons.org/fastapi/009688" width="22" alt="API" /> | requests + 외부 API | 국가법령정보 API와 우리말샘 API 조회 및 검증 흐름에 사용 |
+| <img src="https://cdn.simpleicons.org/docker/2496ED" width="22" alt="Docker" /> | Docker Compose | Pipeline Server 컨테이너 실행과 `src`, `pipelines`, `data` 볼륨 마운트 |
+| <img src="https://github.com/open-webui.png" width="22" alt="Open WebUI" /> | Open WebUI Pipelines | 사용자 질문 입력과 Pipeline Server 연동 진입점으로 사용 |
+
+---
+
 ## 주요 기능
 
 - **조건 기반 이름 추천** — 오행·획수·뜻·발음·성씨 조건을 자연어로 입력, 81수리 4격 자동 계산
 - **법령 적법성 검증** — 인명용 한자 규정 / 가족관계등록법 조항 근거 제시
-- **학술 논문 기반 트렌드 분석** — 작명 관련 논문 266건(통계표 37건 포함) RAG 검색
+- **학술 논문 기반 트렌드 분석** — 작명 관련 논문 264건(통계표 48건 포함) RAG 검색
 - **출처 명시 답변** — 모든 답변에 근거 라벨 포함 `[한자: 자원오행표 木오행]` `[논문: 제목(연도)]` `[출처: law_col]`
 - **ReAct 루프** — 복합 질의 처리 (다중 도구 순차 호출, 최대 5회)
 
@@ -117,24 +125,24 @@
 | `ohaeng_col` | 125건 | 오행 조합 125종 상생/상극 운세 |
 | `law_col` | 248건 | 가족관계등록법 / 인명용 한자 규정 |
 | `urimalsam_col` | 301건 | 순우리말 이름 (baby-name.kr 크롤링) |
-| `paper_col` | 266건 | 작명 관련 학술 논문 (본문 229건 + 통계표 37건) |
+| `paper_col` | 264건 | 작명 관련 학술 논문 (본문 216건 + 통계표 48건) |
 
 > 검색 시 `hanja_col`은 획수·오행 조건 필터를 자동 적용하며, `paper_col`은 쿼리에 "표"/"통계" 포함 시 통계표 청크 우선 검색.
 
 ---
 
-## MCP 서버 및 도구 목록
+## MCP 도구 모듈 목록
 
-총 **4개 서버 · 16개 도구**
+총 **4개 그룹 · 16개 도구**
 
-### `rag_server.py` — ChromaDB 벡터 검색 (2 tools)
+### `rag_server.py` — ChromaDB 벡터 검색 모듈 (2 tools)
 
 | 도구 | 설명 |
 |---|---|
 | `search_rag` | 컬렉션 지정 의미 검색. hanja_col은 획수·오행 필터, paper_col은 chunk_type 필터 자동 적용 |
 | `list_collections` | 컬렉션 목록 및 문서 수 조회 |
 
-### `db_server.py` — 수리/오행 연산 (5 tools)
+### `db_server.py` — 수리/오행 연산 모듈 (5 tools)
 
 | 도구 | 설명 |
 |---|---|
@@ -144,7 +152,7 @@
 | `lookup_ohaeng_combo` | 오행 3자 조합 상생/상극 흐름 분석 |
 | `search_name_stats` | 2016~2026 출생신고 이름 빈도·순위 조회 |
 
-### `law_server.py` — 국가법령 API (3 tools)
+### `law_server.py` — 국가법령 API 모듈 (3 tools)
 
 | 도구 | 설명 |
 |---|---|
@@ -152,7 +160,7 @@
 | `get_law_article` | 특정 조항 전문 조회 |
 | `verify_korean_word` | 우리말샘 API 어휘 유효성 확인 |
 
-### `graph_server.py` — Neo4j 그래프 탐색 (6 tools)
+### `graph_server.py` — Neo4j 그래프 탐색 모듈 (6 tools)
 
 | 도구 | 설명 |
 |---|---|
@@ -165,7 +173,7 @@
 
 ---
 
-## 🏆 모델 평가 및 비교 결론
+## 모델 평가 및 비교 결론
 
 LLM의 단순 생성이 아닌 작명이라는 특수 도메인의 **조건 충족(수리, 오행, 법령 등)**을 위해 두 가지 트랙으로 평가를 진행했습니다.
 
@@ -179,7 +187,7 @@ LLM의 단순 생성이 아닌 작명이라는 특수 도메인의 **조건 충�
 - **평가 결과 (11개 케이스)**: **성공 처리 10/11, 전체 평균 1.63 / 5점**
 - **한계점**: 챗봇으로서의 말투와 응답 형식 모방에는 성공했으나, **수리 계산 오류, 오행 상생/상극 환각(Hallucination), 법령 팩트체크 실패** 등 4B 소형 모델 체급의 한계를 보임.
 
-### 💡 최종 결론
+### 최종 결론
 작명 도메인은 단순 문장 생성보다 **사실성(Factuality)과 계산 정확성**이 중요합니다. 따라서 **GPT Pipeline을 최종 운영 모델로 확정**하였으며, Qwen 파인튜닝은 향후 Hybrid 구조에서 단순 응답을 보조하는 경량 모델로서의 가능성을 확인하는 실험적 성과로 남깁니다.
 
 ---
@@ -195,7 +203,7 @@ LLM의 단순 생성이 아닌 작명이라는 특수 도메인의 **조건 충�
 | 순우리말 이름 (baby-name.kr 1~11p) | 크롤링 | JSON | 수집 완료 (301건) |
 | 81수리 운세 / 오행 조합 운세 | 직접 구조화 | JSON | 수집 완료 |
 | 출생신고 이름 빈도 통계 (2016~2026) | 법원행정처 공공데이터 | XLS | 수집 완료 |
-| 작명 관련 학술 논문 | 논문 PDF 전처리 | PDF→JSON | 수집 완료 (266청크) |
+| 작명 관련 학술 논문 | 논문 PDF 전처리 | PDF→JSON | 수집 완료 (264청크) |
 | 한자 확장 후보군 6,564건 | hanja.pdf 원본 + Unihan 교차검증 | JSON | 운영 DB 대기 상태 |
 
 > API 키: `OPENAI_API_KEY` · `LAW_API_KEY` · `URIMALSAM_API_KEY` 발급 완료
@@ -236,7 +244,7 @@ SKN29-3rd-4Team/
 | 3단계 | Neo4j 스키마 설계 및 인덱싱 | ✅ 완료 |
 | 4단계 | LangGraph StateGraph 설계 및 4방향 Router | ✅ 완료 |
 | 4단계 | ReAct 루프 (다중 의도 질의 처리) 및 면책 고지 | ✅ 완료 |
-| 5단계 | MCP 서버 4종 · 16개 도구 구현 | ✅ 완료 |
+| 5단계 | MCP 도구 모듈 4종 · 16개 도구 구현 | ✅ 완료 |
 | 6단계 | LLM 답변 생성 (gpt-5.4-mini) | ✅ 완료 |
 | 7단계 | Qwen3.5:4b QLoRA 파인튜닝 및 운영 모델 비교 평가 | ✅ 완료 |
 
@@ -273,4 +281,4 @@ pip install -r requirements.txt
 
 ---
 
-> 최종 업데이트: 2026-06-17
+> 최종 업데이트: 2026-06-19

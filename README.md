@@ -55,6 +55,28 @@
 
 ---
 
+## 기술 스택 및 Tool
+
+| 아이콘 | 이름 | 내용(작업쓰인내용) |
+|---|---|---|
+| <img src="https://cdn.simpleicons.org/python/3776AB" width="22" alt="Python" /> | Python 3.11 | LangGraph Pipeline, MCP Tool, 데이터 전처리, 인덱싱, 평가 스크립트 구현 |
+| <img src="https://cdn.simpleicons.org/langchain/1C3C3C" width="22" alt="LangGraph" /> | LangGraph | 사용자 질문을 RAG, 계산, 법령/API, 그래프 경로로 라우팅하고 ReAct 루프 구성 |
+| <img src="https://cdn.simpleicons.org/langchain/1C3C3C" width="22" alt="LangChain" /> | LangChain / ChatOpenAI | `gpt-5.4-mini` 라우터, 답변 생성, 내부 검증 성격 후처리, LLM-as-a-Judge 평가 연결 |
+| <img src="https://github.com/modelcontextprotocol.png" width="22" alt="MCP" /> | FastMCP | `rag_server.py`, `db_server.py`, `law_server.py`, `graph_server.py` 4개 Tool 모듈과 16개 Tool 구성 |
+| <img src="https://github.com/chroma-core.png" width="22" alt="ChromaDB" /> | ChromaDB | 한자, 수리, 오행, 법령, 순우리말, 논문 6개 컬렉션 벡터 검색 저장소로 사용 |
+| <img src="https://cdn.simpleicons.org/neo4j/4581C3" width="22" alt="Neo4j" /> | Neo4j | 한자, 음, 획수, 오행, 법령 허용 관계를 그래프로 구성하고 탐색 |
+| <img src="https://github.com/openai.png" width="22" alt="OpenAI" /> | OpenAI API | 운영 기본 모델 `gpt-5.4-mini` 기반 답변 생성과 평가에 사용 |
+| <img src="https://cdn.simpleicons.org/alibabacloud/FF6A00" width="22" alt="Qwen" /> | Qwen3.5-4B LoRA | sLLM 파인튜닝 실험 및 GPT Pipeline과의 성능 비교에 사용 |
+| <img src="https://cdn.simpleicons.org/huggingface/FFD21E" width="22" alt="Hugging Face" /> | sentence-transformers | `jhgan/ko-sroberta-multitask` 로컬 임베딩 모델로 ChromaDB 문서 벡터화 |
+| <img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/adobeacrobatreader.svg" width="22" alt="PDF" /> | pdfplumber / pypdf | 한자, 법령, 논문 PDF 텍스트 추출 및 전처리 보조 |
+| <img src="https://cdn.simpleicons.org/pypi/3775A9" width="22" alt="KoNLPy" /> | KoNLPy Okt | 법령 및 한국어 텍스트 전처리에서 형태소 분석과 정규화 보조 |
+| <img src="https://cdn.simpleicons.org/pandas/150458" width="22" alt="pandas" /> | pandas / openpyxl / xlrd | XLS/XLSX 기반 이름 통계, 오행표, 성씨 보조 데이터 처리 |
+| <img src="https://cdn.simpleicons.org/fastapi/009688" width="22" alt="API" /> | requests + 외부 API | 국가법령정보 API와 우리말샘 API 조회 및 검증 흐름에 사용 |
+| <img src="https://cdn.simpleicons.org/docker/2496ED" width="22" alt="Docker" /> | Docker Compose | Pipeline Server 컨테이너 실행과 `src`, `pipelines`, `data` 볼륨 마운트 |
+| <img src="https://github.com/open-webui.png" width="22" alt="Open WebUI" /> | Open WebUI Pipelines | 사용자 질문 입력과 Pipeline Server 연동 진입점으로 사용 |
+
+---
+
 ## 주요 기능
 
 - **조건 기반 이름 추천** — 오행·획수·뜻·발음·성씨 조건을 자연어로 입력, 81수리 4격 자동 계산
@@ -151,7 +173,7 @@
 
 ---
 
-## 🏆 모델 평가 및 비교 결론
+## 모델 평가 및 비교 결론
 
 LLM의 단순 생성이 아닌 작명이라는 특수 도메인의 **조건 충족(수리, 오행, 법령 등)**을 위해 두 가지 트랙으로 평가를 진행했습니다.
 
@@ -165,7 +187,7 @@ LLM의 단순 생성이 아닌 작명이라는 특수 도메인의 **조건 충�
 - **평가 결과 (11개 케이스)**: **성공 처리 10/11, 전체 평균 1.63 / 5점**
 - **한계점**: 챗봇으로서의 말투와 응답 형식 모방에는 성공했으나, **수리 계산 오류, 오행 상생/상극 환각(Hallucination), 법령 팩트체크 실패** 등 4B 소형 모델 체급의 한계를 보임.
 
-### 💡 최종 결론
+### 최종 결론
 작명 도메인은 단순 문장 생성보다 **사실성(Factuality)과 계산 정확성**이 중요합니다. 따라서 **GPT Pipeline을 최종 운영 모델로 확정**하였으며, Qwen 파인튜닝은 향후 Hybrid 구조에서 단순 응답을 보조하는 경량 모델로서의 가능성을 확인하는 실험적 성과로 남깁니다.
 
 ---
@@ -259,4 +281,4 @@ pip install -r requirements.txt
 
 ---
 
-> 최종 업데이트: 2026-06-17
+> 최종 업데이트: 2026-06-19
